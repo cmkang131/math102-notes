@@ -20,11 +20,12 @@
       var sys=function(){return matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'};
       root.setAttribute('data-theme',s||sys());
       btn=d.createElement('button');btn.type='button';btn.className='theme-toggle';
-      var lab=function(){btn.textContent=root.getAttribute('data-theme')==='dark'?'라이트':'다크';btn.setAttribute('aria-label','화면 모드 전환')};
+      var lab=function(){btn.textContent=root.getAttribute('data-theme')==='dark'?'라이트':'다크 모드';btn.setAttribute('aria-label','화면 모드 전환')};
       lab();btn.onclick=function(){var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem(k,n)}catch(e){}lab()};
     }
-    var ph=$('.phead');
-    if(ph){ph.appendChild(btn)}
+    var ph=$('.phead'),phr=$('.phead-r');
+    if(phr){phr.appendChild(btn)}
+    else if(ph){ph.appendChild(btn)}
     else{var bar=d.createElement('div');bar.className='v5-bar';bar.appendChild(btn);paper.insertBefore(bar,paper.firstChild)}
 
     // details -> 통일 스타일 훅
@@ -54,7 +55,8 @@
 
     // 상단 목차 (h2 3개 이상이고 .toc가 없을 때)
     var h2s=$$('h2[id]',main).filter(function(h){return !h.classList.contains('solo-h')});
-    if(h2s.length>=3&&!$('.toc')&&!$('nav.v5-toc')){
+    var isIdx=/(^|\/)index\.html?$/.test(location.pathname)||/\/$/.test(location.pathname);
+    if(!isIdx&&h2s.length>=3&&!$('.toc')&&!$('nav.v5-toc')){
       var nav=d.createElement('nav');nav.className='v5-toc toc';nav.setAttribute('aria-label','이 페이지 목차');
       var tt=d.createElement('div');tt.className='v5-toc-t';tt.textContent='이 페이지';nav.appendChild(tt);
       var ol=d.createElement('ol');

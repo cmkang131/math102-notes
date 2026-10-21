@@ -75,7 +75,7 @@ tr{break-inside:avoid}
 .phead .theme-toggle,.v5-bar .theme-toggle{position:static!important;margin-left:auto;flex:none;font-size:12px;padding:3px 9px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:3px}
 .phead .theme-toggle:hover,.v5-bar .theme-toggle:hover{background:var(--hl)}
 .v5-bar{display:flex;justify-content:flex-end;margin-bottom:8px}
-@media(max-width:560px){.phead-c{text-align:left;flex:1 1 100%;order:3}.phead-r{display:none}.phead .theme-toggle{margin-left:auto}}
+@media(max-width:560px){.phead-c{text-align:left;flex:1 1 100%;order:3}.phead-r .phead-course,.phead-r .to-root{display:none}.phead .theme-toggle{margin-left:auto}}
 
 /* 9. 상단 목차(긴 페이지) + 현재 위치 */
 nav.v5-toc{border:1px solid var(--ink);margin:16px 0 22px;padding:10px 16px;font-size:14.5px;background:#fff}
