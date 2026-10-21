@@ -1,8 +1,8 @@
 
 @font-face{font-family:'Nanum Pen';src:url(fonts/nanumpen.woff) format('woff');font-weight:400 700;font-display:swap}
 @font-face{font-family:'Caveat';src:url(fonts/caveat.woff) format('woff');font-weight:400 700;font-display:swap}
-@font-face{font-family:'Noto Sans KR';src:url(fonts/noto400.woff) format('woff');font-weight:400;font-display:swap}
-@font-face{font-family:'Noto Sans KR';src:url(fonts/noto700.woff) format('woff');font-weight:700;font-display:swap}
+@font-face{font-family:'Noto Sans KR';src:url(fonts/noto400.woff2) format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Noto Sans KR';src:url(fonts/noto700.woff2) format('woff2');font-weight:700;font-display:swap}
 :root{--ink:#1a1a1a;--red:#9e2b25;--gray:#666;--rule:#1a1a1a;
   --accent:#9e2b25;--soft:#f2f2f2;--hairline:#d9d9d9;--edge:#555555}
 *{box-sizing:border-box;margin:0;padding:0}
