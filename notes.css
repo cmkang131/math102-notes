@@ -53,3 +53,10 @@ html[data-theme="dark"] .theme-toggle{background:#fff}
 html[data-theme="dark"] .nb,html[data-theme="dark"] .bx,html[data-theme="dark"] .fbox,html[data-theme="dark"] table,html[data-theme="dark"] figure{background:#ededed}
 html[data-theme="dark"] svg [fill="#fff"],html[data-theme="dark"] svg [fill="#ffffff"]{fill:#ededed}
 html[data-theme="dark"] svg [fill="#f2f2f2"]{fill:#e0e0e0}
+
+/* v3.3: 박스(.thm) 안 위계 - 2열 정의표 변형 + 행 간격 */
+.cn .thm dl.deflist{border-top:none;border-bottom:none;margin:6px 0}
+.cn .thm dl.deflist>div{padding:6px 2px;border-top:1px solid #e8e8e8}
+.cn .thm dl.deflist>div:first-child{border-top:none;padding-top:2px}
+.cn .thm dl.deflist>div:has(>dt:empty){grid-template-columns:1fr}
+.cn .thm dl.deflist>div>dt:empty{display:none}
