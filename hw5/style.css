@@ -24,7 +24,7 @@ a.to-home:hover{color:var(--blue);border-color:var(--blue)}
 .body ol li{margin:.16em 0;padding-left:.2em;display:list-item}
 section.part{margin-top:0;padding:22px 0;border-top:1px solid var(--rule)}
 article.prob-page > section.part:first-child{border-top:none;padding-top:0}
-.problem{border:1.5px solid var(--rule);padding:16px 22px;background:#fff}
+.problem{border-top:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule);padding:14px 2px;background:#fff}
 .prob-no{font-family:'Nanum Pen','Caveat',cursive;font-weight:700;font-size:26px;line-height:1.4;color:var(--ink);margin-bottom:8px}
 .concept{border:1.5px solid var(--rule);padding:14px 20px;background:#fff}
 .concept-title{font-weight:700;font-size:16.5px;margin-bottom:8px;color:var(--blue)}
@@ -40,7 +40,7 @@ article.prob-page > section.part:first-child{border-top:none;padding-top:0}
 .figwrap{text-align:center;margin:10px 0}
 .figwrap svg{max-width:min(600px,92%);height:auto}
 .figcap{font-size:13.5px;color:#555;text-align:center;margin-top:12px}
-.takeaway{margin-top:0;font-size:16px;border:1.5px solid var(--rule);padding:12px 18px}
+.takeaway{margin-top:0;font-size:16px;border-top:1px solid var(--rule);padding:10px 2px 2px}
 .body b{color:var(--red)}
 .pnav{display:flex;justify-content:space-between;align-items:center;margin-top:0;padding:14px 0 0;border-top:1px solid var(--rule);font-size:13px}
 .pnav a{color:var(--ink);text-decoration:none;cursor:pointer;border-bottom:1px solid #999}
