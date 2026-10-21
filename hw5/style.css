@@ -1,0 +1,139 @@
+
+@font-face{font-family:'Nanum Pen';src:url(fonts/nanumpen.woff) format('woff');font-weight:400 700;font-display:swap}
+@font-face{font-family:'Caveat';src:url(fonts/caveat.woff) format('woff');font-weight:400 700;font-display:swap}
+@font-face{font-family:'Noto Sans KR';src:url(fonts/noto400.woff) format('woff');font-weight:400;font-display:swap}
+@font-face{font-family:'Noto Sans KR';src:url(fonts/noto700.woff) format('woff');font-weight:700;font-display:swap}
+:root{--ink:#1a1a1a;--red:#b03a32;--gray:#666;--blue:#2456c4;--rule:#1a1a1a}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans KR','Apple SD Gothic Neo',system-ui,sans-serif;background:#fff;color:var(--ink);-webkit-tap-highlight-color:transparent}
+svg{max-width:100%}
+.mjx{display:inline!important}.mjx svg{display:inline-block!important;vertical-align:middle;overflow:visible}
+.mjx-display{margin:9px 0;overflow-x:auto;overflow-y:hidden;padding:7px 14px;border:1px solid #1a1a1a;background:transparent}
+.mjx-display svg{display:block!important;margin:0 auto}
+.paper{max-width:780px;margin:0 auto;background:#fff;padding:28px 40px 56px}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;color:var(--gray);
+  padding-bottom:10px;margin-bottom:0}
+.phead-c{color:var(--ink);font-weight:700;font-size:13.5px;text-align:center}
+.phead-r{font-size:12.5px;white-space:nowrap}
+a.to-home{color:var(--ink);text-decoration:none;cursor:pointer;border-bottom:1px solid #999;white-space:nowrap;font-size:13px}
+a.to-home:hover{color:var(--blue);border-color:var(--blue)}
+.body{font-size:16.5px;line-height:1.7}
+.body p{margin:.3em 0}
+.body ol{margin:.2em 0;padding-left:1.8em;list-style:lower-alpha outside}
+.body ol li{margin:.16em 0;padding-left:.2em;display:list-item}
+section.part{margin-top:0;padding:22px 0;border-top:1px solid var(--rule)}
+article.prob-page > section.part:first-child{border-top:none;padding-top:0}
+.problem{border:1.5px solid var(--rule);padding:16px 22px;background:#fff}
+.prob-no{font-family:'Nanum Pen','Caveat',cursive;font-weight:700;font-size:26px;line-height:1.4;color:var(--ink);margin-bottom:8px}
+.concept{border:1.5px solid var(--rule);padding:14px 20px;background:#fff}
+.concept-title{font-weight:700;font-size:16.5px;margin-bottom:8px;color:var(--blue)}
+.concept-title.blue{color:var(--blue)}
+.ref{font-size:12.5px;color:var(--gray);margin:-2px 0 10px}
+.concept ul{margin-left:.4em;list-style:none}
+.concept li{margin:.14em 0;font-size:15.5px;padding-left:1.1em;position:relative}
+.concept li::before{content:"–";position:absolute;left:.2em;color:#555}
+.sol-tag{display:inline-block;font-weight:700;font-size:16.5px;color:var(--ink);margin-bottom:8px}
+.subpart{border-top:1px solid #bbb;padding-top:12px;margin-top:14px}
+.subpart.first{border-top:none;margin-top:0;padding-top:0}
+.solution span.part{font-weight:700;color:var(--ink);margin-right:3px}
+.figwrap{text-align:center;margin:10px 0}
+.figwrap svg{max-width:min(600px,92%);height:auto}
+.figcap{font-size:13.5px;color:#555;text-align:center;margin-top:12px}
+.takeaway{margin-top:0;font-size:16px;border:1.5px solid var(--rule);padding:12px 18px}
+.body b{color:var(--red)}
+.pnav{display:flex;justify-content:space-between;align-items:center;margin-top:0;padding:14px 0 0;border-top:1px solid var(--rule);font-size:13px}
+.pnav a{color:var(--ink);text-decoration:none;cursor:pointer;border-bottom:1px solid #999}
+.pnav a:hover{color:var(--blue);border-color:var(--blue)}
+
+.mid-cheat,.mid-box{border:1.5px solid var(--rule);padding:14px 20px;background:#fff}
+.mid-box{margin-top:14px}
+.mid-cheat ul,.mid-box ul{list-style:none;margin-left:0}
+.mid-cheat li,.mid-box li{margin:.12em 0;font-size:15px;padding-left:1.1em;position:relative}
+.mid-cheat li::before,.mid-box li::before{content:"–";position:absolute;left:.2em;color:#555}
+.mid-box-t{font-weight:700;margin-bottom:6px}
+.body .body.notes ol.steps{list-style:decimal outside}
+.pattern{margin-top:16px;border-top:1px solid #bbb;padding-top:12px}
+.pattern-name{font-weight:700}
+.pattern-ex{margin-top:4px;font-size:15px}
+/* home */
+.t-course{font-size:13px;color:var(--gray);letter-spacing:.08em;font-weight:700}
+h1.t-title{font-size:26px;line-height:1.3;color:var(--ink);font-weight:700;margin:6px 0 4px}
+.t-sub{font-size:15.5px;color:#444;margin-top:10px}
+.t-meta{margin-top:6px;font-size:13px;color:var(--gray)}
+.idx{margin-top:22px;list-style:none;border-top:1px solid var(--rule)}
+.idx-row{display:flex;align-items:baseline;gap:14px;padding:11px 4px;border-bottom:1px solid #ccc;text-decoration:none;color:var(--ink);cursor:pointer}
+.idx-row:hover .idx-no{color:var(--blue)}
+.idx-no{font-weight:700;font-size:15.5px;white-space:nowrap}
+.idx-title{color:#444;font-size:14.5px}
+.idx-num{margin-left:auto;color:var(--gray);font-size:12.5px;white-space:nowrap}
+.back-site{margin-top:28px;font-size:13px;color:var(--gray)}
+.back-site a{color:var(--ink);border-bottom:1px solid #999;text-decoration:none}
+@media (max-width:760px){
+  .paper{padding:20px 18px 40px}
+  .body{font-size:15.5px}
+  .phead-r{display:none}
+  h1.t-title{font-size:22px}
+}
+@media print{
+  body{background:#fff}
+  .paper{max-width:none;margin:0;padding:10px 20px}
+  article.prob-page{page-break-before:always}
+  article.prob-page:first-of-type{page-break-before:avoid}
+  .pnav{display:none}
+  a{text-decoration:none;color:inherit}
+}
+
+/* ===== study-note layer (2026-10-21 user rule) =====
+   White page, Noto Sans KR (no handwriting font, no ruled paper).
+   Handwritten-notes FEEL via hierarchy/indent/color only.
+   Wrap note content in <div class="body notes">. */
+.notes h2{font-size:19px;font-weight:700;color:var(--ink);margin:28px 0 10px;padding-bottom:5px;border-bottom:1.5px solid var(--rule)}
+.notes h3{font-size:16.5px;font-weight:700;color:var(--ink);margin:20px 0 6px}
+.notes h4{font-size:15.5px;font-weight:700;color:#333;margin:14px 0 4px}
+.notes p{margin:.3em 0}
+/* level-nested bullets: • lv1, – lv2, · lv3 */
+.notes ul{list-style:none;margin:.25em 0;padding-left:0}
+.notes ul li{position:relative;padding-left:1.25em;margin:.2em 0;line-height:1.65}
+.notes ul li::before{content:"•";position:absolute;left:.3em;color:var(--ink)}
+.notes ul ul{margin:.12em 0;padding-left:1.15em}
+.notes ul ul li::before{content:"–";color:#555}
+.notes ul ul ul{padding-left:1.15em}
+.notes ul ul ul li::before{content:"·";color:#999}
+.notes ol{margin:.25em 0;padding-left:1.7em}
+.notes ol li{margin:.2em 0;line-height:1.65}
+.notes ol ol{list-style:lower-alpha}
+/* key term / definition -> blue */
+.k-blue{color:var(--blue);font-weight:700}
+/* warning / condition / must-remember -> red */
+.k-red{color:var(--red);font-weight:700}
+/* important phrase -> yellow highlighter */
+.hl{background:#fff1a8;padding:.02em .18em;border-radius:2px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+/* boxed key formula */
+.fbox{border:1.5px solid var(--rule);padding:10px 16px;margin:12px 0;background:#fff}
+.fbox .mjx-display{margin:.15em 0}
+/* definition block (blue accent) */
+.def{border-left:3px solid var(--rule);padding:5px 0 5px 14px;margin:12px 0}
+/* warning/condition block (red accent) */
+.warn{border-left:3px solid var(--rule);padding:5px 0 5px 14px;margin:12px 0}
+/* small gray source/ref line */
+.refline{font-size:12.5px;color:var(--gray);margin:2px 0 8px}
+
+
+/* reveal toggles (details/summary, no JS) */
+.dx-pair{margin:14px 0}
+details.dx{margin:12px 0}
+details.dx summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none;user-select:none;color:var(--ink)}
+details.dx summary::-webkit-details-marker{display:none}
+details.dx summary::before{content:"\25B8 "}
+details.dx[open] summary::before{content:"\25BE "}
+details.dx summary:hover{color:var(--blue)}
+details.dx .dx-body{margin-top:6px;padding:10px 0 2px;border-top:1px solid var(--rule)}
+details.dx .dx-body section.part{border-top:none;padding:8px 0}
+.dx-note{font-size:13px;color:var(--gray);margin:0 0 8px}
+@media print{details.dx summary{display:none!important} details.dx .dx-body{border-top:none;padding:2px 0!important} .to-home{display:none}}
+/* numbered solution steps (exam/worked solutions) */
+.body.notes ol.steps{list-style:none;counter-reset:st;margin:8px 0;padding-left:0}
+.body.notes ol.steps>li{counter-increment:st;position:relative;padding:3px 4px 3px 78px;margin:.5em 0;line-height:1.65}
+.body.notes ol.steps>li::before{content:"Step " counter(st);position:absolute;left:2px;top:4px;font-weight:700;color:var(--blue);font-size:13.5px;white-space:nowrap}
+.body.notes ol.steps>li.final{background:#fff7cf;border-radius:6px;padding-right:10px}
