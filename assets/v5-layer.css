@@ -1,0 +1,139 @@
+/* ==========================================================================
+   study-note v5 layer (2026-10-22). v4 CSS 뒤에 한 줄로 얹는다: <link rel="stylesheet" href="assets/v5-layer.css">
+   본문/정답 내용은 건드리지 않음. 팔레트: ink #1a1a1a, 회색, 액센트 #9e2b25, 형광펜 #fff1a8.
+   ========================================================================== */
+:root{--ink:#1a1a1a;--red:#9e2b25;--accent:#9e2b25;--gray:#666;--rule:#1a1a1a;--hl:#fff1a8;--grey-1:#f4f4f4;--blue:#1a1a1a;--header-h:56px}
+
+/* 1. 링크: 방문/hover/active 전부 ink. 파랑·보라 금지. 밑줄 + hover 형광펜 */
+a:link,a:visited,a:hover,a:active{color:var(--ink)}
+.paper a:not(.tap):not(.card):not(.tapc):not(.idx-row):not(.to-top):not(.skip-link):not(.v5-anchor){text-decoration:underline;text-decoration-color:#777;text-underline-offset:3px;border-bottom:none}
+.paper a:not(.tap):not(.card):not(.tapc):not(.idx-row):hover{background:var(--hl);text-decoration-color:var(--ink)}
+a.tap:hover,a.card:hover,.tapc:hover,.idx-row:hover{background:var(--hl)!important;border-color:var(--ink)}
+.to-root{color:var(--gray)!important}
+a:focus-visible,button:focus-visible,summary:focus-visible,.tap:focus-visible,.card:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:2px}
+[aria-current="page"]{background:var(--hl);font-weight:700}
+button,summary,a,.tap,.card{cursor:pointer}
+
+/* 2. 본문 컬럼 탈출 방지 */
+html{-webkit-text-size-adjust:100%}
+.paper{max-width:780px;min-width:0;overflow-x:clip;overflow-wrap:break-word}
+.paper img,.paper svg,.paper figure,.paper video{max-width:100%}
+.paper img{height:auto}
+.paper pre{max-width:100%;overflow-x:auto;white-space:pre}
+.paper code{overflow-wrap:anywhere}
+.paper p,.paper li,.paper dd{overflow-wrap:break-word;word-break:keep-all}
+.paper .mjx-display,.paper .tblwrap{max-width:100%}
+
+/* 3. 헤딩 앵커 + 고정 헤더 대비 여백 */
+h2,h3,h4,[id]{scroll-margin-top:calc(var(--header-h) + 16px)}
+.v5-anchor{visibility:hidden;margin-left:.4em;font-weight:400;color:var(--gray)!important;text-decoration:none!important;font-size:.85em}
+h2:hover .v5-anchor,h3:hover .v5-anchor,.v5-anchor:focus-visible{visibility:visible}
+.v5-anchor:hover{background:var(--hl);color:var(--ink)!important}
+@media(hover:none){.v5-anchor{display:none}}
+
+/* 4. 힌트/정답/토글: 전부 details. 버튼처럼 보이게 (검정 얇은 보더, +/− 마커) */
+body details.v5d{border:1px solid var(--ink);border-radius:0;margin:12px 0;padding:0;background:#fff}
+body details.v5d.src{border-style:solid}
+body details.v5d>summary{display:flex;align-items:center;min-height:44px;list-style:none;padding:.5em .9em .5em 2.5em;font-weight:700;font-size:15px;position:relative;user-select:none;color:var(--ink);text-decoration:none}
+body details.v5d>summary::-webkit-details-marker{display:none}
+body details.v5d>summary::before{content:"+";position:absolute;left:.9em;top:50%;transform:translateY(-50%)!important;width:1em;text-align:center;font-weight:700;color:var(--ink);font-size:15px;margin:0}
+body details.v5d[open]>summary::before{content:"\2212"}
+body details.v5d>summary:hover{background:var(--hl);color:var(--ink)}
+body details.v5d[open]>summary{background:var(--grey-1);border-bottom:1px solid var(--ink)}
+body details.v5d[open]>summary:hover{background:var(--hl)}
+body details.v5d>:not(summary){margin:0!important;padding:.7em .95em!important;border-top:none!important}
+body details.v5d .dx-body{border-top:none}
+.dx-pair{margin:14px 0}
+/* 힌트→정답 사이 간격 */
+body details.v5d+details.v5d{margin-top:-1px}
+
+/* 5. 타이포그래피 */
+.body,.notes{font-size:16.5px;line-height:1.75}
+@media(max-width:760px){.body,.notes{font-size:16px}}
+
+/* 6. 표: booktabs + 스크롤 힌트 + sticky thead */
+.tblwrap{position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:18px 0}
+.tblwrap table{margin:0!important}
+.tblwrap.can-r::after{content:"";position:sticky;right:0;float:right;top:0;width:28px;height:100%;margin-left:-28px;pointer-events:none;background:linear-gradient(to right,rgba(255,255,255,0),#fff);}
+.tblwrap.can-r{box-shadow:inset -1px 0 0 #e2e2e2}
+.tblwrap.long{max-height:72vh;overflow:auto}
+.tblwrap.long thead th{position:sticky;top:0;background:#fff;z-index:2;box-shadow:0 1px 0 var(--ink)}
+.paper td.num,.paper th.num{text-align:right}
+thead{display:table-header-group}
+tr{break-inside:avoid}
+
+/* 7. 통계 카드/그리드: 모바일 세로 스택 */
+@media(max-width:560px){
+  .stats,.statrow,.stat-row,.cols2,.cols3,.grid2,.grid3,.cards,.card-grid{display:grid!important;grid-template-columns:1fr!important}
+  .stat{min-width:0;width:100%}
+  .paper [style*="display:flex"].stats{flex-direction:column}
+}
+.stats{display:flex;flex-wrap:wrap;gap:10px}
+
+/* 8. 헤더: 테마 토글을 헤더 안에 인라인. 모바일에서 헤더 글자 가리지 않음 */
+.phead{flex-wrap:wrap;row-gap:4px;align-items:center}
+.phead .theme-toggle,.v5-bar .theme-toggle{position:static!important;margin-left:auto;flex:none;font-size:12px;padding:3px 9px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:3px}
+.phead .theme-toggle:hover,.v5-bar .theme-toggle:hover{background:var(--hl)}
+.v5-bar{display:flex;justify-content:flex-end;margin-bottom:8px}
+@media(max-width:560px){.phead-c{text-align:left;flex:1 1 100%;order:3}.phead-r{display:none}.phead .theme-toggle{margin-left:auto}}
+
+/* 9. 상단 목차(긴 페이지) + 현재 위치 */
+nav.v5-toc{border:1px solid var(--ink);margin:16px 0 22px;padding:10px 16px;font-size:14.5px;background:#fff}
+nav.v5-toc .v5-toc-t{font-weight:700;font-size:13px;color:var(--gray);margin-bottom:6px}
+nav.v5-toc ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px}
+nav.v5-toc li{margin:0;padding:0}
+nav.v5-toc li::before{content:none!important}
+nav.v5-toc a.active,.toc a.active{background:var(--hl);font-weight:700}
+@media(max-width:560px){nav.v5-toc ol{flex-direction:column}}
+
+/* 10. 하단 이전/다음 + 맨 위로 + 스킵 링크 */
+.pnav,.v5-pn{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:26px;padding-top:14px;border-top:1px solid var(--ink);font-size:14px}
+.pnav a,.v5-pn a{border:1px solid var(--ink);padding:.35em .8em;text-decoration:none!important;border-bottom:1px solid var(--ink)!important;background:#fff}
+.pnav a:hover,.v5-pn a:hover{background:var(--hl)}
+.pnav a.to-home{border:1px solid var(--ink)}
+.pnav span:empty{flex:1}
+.to-top{position:fixed;right:14px;bottom:14px;z-index:40;border:1px solid var(--ink);background:#fff;padding:.3em .75em;font-size:13px;text-decoration:none!important;color:var(--gray)!important;opacity:0;pointer-events:none;transition:opacity .15s}
+.to-top.show{opacity:1;pointer-events:auto}
+.to-top:hover{background:var(--hl);color:var(--ink)!important}
+.skip-link{position:absolute;left:-9999px;top:0;z-index:100;background:var(--hl);padding:.5em 1em;border:1px solid var(--ink);text-decoration:none}
+.skip-link:focus{left:0}
+/* 단일 항목 섹션: 제목은 스크린리더용으로만 */
+.solo-h{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* 11. 목록/로드맵 항목 = 클릭 카드 (.tap) 통일. 호버 시 화살표 이동 */
+a.tap,a.card{color:var(--ink);text-decoration:none}
+a.tap:hover::after{color:var(--ink)}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* 12. 다크 모드 (invert 방식 유지). 홈 index도 동일 규칙 */
+html[data-theme="dark"]{filter:invert(1) hue-rotate(180deg);background:#ededed}
+html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#ededed}
+html[data-theme="dark"] svg,html[data-theme="dark"] figure{background:transparent}
+html[data-theme="dark"] :is(.card,a.tap,.tapc,details.v5d,.dx-body,.concept,.mid-box,.mid-cheat,.problem,.bx,.nb,.fbox,.tblwrap,table,nav.v5-toc,.to-top,.pnav a,.v5-pn a,.stat,.notice,.theme-toggle,.tblwrap.long thead th){background-color:#ededed}
+html[data-theme="dark"] .tblwrap.can-r::after{background:linear-gradient(to right,rgba(237,237,237,0),#ededed)}
+html[data-theme="dark"] svg [fill="#fff"],html[data-theme="dark"] svg [fill="#ffffff"]{fill:#ededed}
+html[data-theme="dark"] svg [fill="#f2f2f2"]{fill:#e0e0e0}
+html[data-theme="dark"] details.v5d[open]>summary{background:#e0e0e0}
+
+/* 13. 인쇄 */
+@media print{
+  .phead .theme-toggle,.v5-bar,.to-top,.skip-link,.v5-anchor,nav.v5-toc,.pnav,.v5-pn,.theme-toggle{display:none!important}
+  html[data-theme="dark"]{filter:none;background:#fff}
+  html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#fff}
+  body details.v5d{border:none}
+  body details.v5d>summary{border:none;background:none;padding-left:0;font-size:13px;color:var(--gray)}
+  body details.v5d>summary::before{content:""}
+  body details.v5d>:not(summary){display:block!important;padding:.2em 0!important}
+  .tblwrap,.tblwrap.long{max-height:none;overflow:visible}
+  .paper{overflow:visible}
+  .fbox,.concept,.bx,.nb,.problem,.mjx-display,.subpart,figure{break-inside:avoid}
+  a{text-decoration:none!important;background:none!important}
+}
+
+/* 모바일 터치 타깃 44px (버튼형 요소) + Step 라벨 간격 */
+.pnav a,.v5-pn a,.theme-toggle,.to-top{min-height:36px;display:inline-flex;align-items:center}
+@media(pointer:coarse){.pnav a,.v5-pn a,.theme-toggle,.to-top{min-height:44px}.paper a.tap,.paper a.card{min-height:44px}}
+/* 'Step N' 라벨형 단계 목록(ol.steps.step-label)은 라벨과 본문 사이 간격 보장 */
+.body.notes ol.steps.step-label>li{padding-left:5.6em}
+@media(max-width:560px){.body.notes ol.steps.step-label>li{padding-left:5em}}
