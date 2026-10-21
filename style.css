@@ -1,4 +1,4 @@
-:root{--ink:#1a1a1a;--red:#b03a32;--gray:#666;--blue:#2456c4;--rule:#1a1a1a}
+:root{--ink:#1a1a1a;--red:#9e2b25;--gray:#666;--rule:#1a1a1a}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR','Apple SD Gothic Neo',system-ui,sans-serif;background:#fff;color:var(--ink);-webkit-tap-highlight-color:transparent}
 .paper{max-width:780px;margin:0 auto;background:#fff;padding:36px 40px 64px}
@@ -10,7 +10,7 @@ h2{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px}
 .go{float:right;color:var(--gray);font-size:18px}
 a.card{display:block;text-decoration:none;color:var(--ink);border-top:1.5px solid var(--rule);padding:14px 2px;margin-top:14px;cursor:pointer;background:#fff}
 .card-t{font-weight:700;font-size:16.5px}
-a.card:hover .card-t{color:var(--blue)}
+a.card:hover .card-t{color:var(--ink)}
 .card-d{font-size:14.5px;color:#444;margin-top:6px;line-height:1.55}
 .card-m{font-size:13px;color:var(--gray);margin-top:8px}
 div.card-off{border-top:1.5px solid var(--rule);padding:14px 2px;margin-top:14px;color:var(--gray)}

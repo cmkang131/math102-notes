@@ -6,20 +6,21 @@ body{background:#fff;color:#111}
 .cn .sec{border-top:1px solid #1a1a1a;margin-top:30px;padding-top:18px}
 .cn .sec:first-child{border-top:none;margin-top:10px;padding-top:0}
 .cn h2{border-bottom:none;font-size:19px;font-weight:700;margin:0 0 10px;color:#111;line-height:1.5}
-.cn h3{font-size:16.5px;font-weight:700;margin:20px 0 4px;color:#111}
+.cn h3{font-size:16px;font-weight:700;margin:36px 0 10px;padding-top:16px;border-top:1px solid #e2e2e2;color:#111}
+.cn .sec > h3:first-child{border-top:none;padding-top:0;margin-top:14px}
 .cn p{margin:.4em 0}
 .cn ul{list-style:none;margin:.3em 0;padding:0}
-.cn ul li{position:relative;padding-left:1.25em;margin:.22em 0}
+.cn ul li{position:relative;padding-left:1.3em;margin:.55em 0;line-height:1.78}
 .cn ul li::before{content:"•";position:absolute;left:.3em}
-.cn ul ul{padding-left:1.1em}
+.cn ul ul{padding-left:1.35em;margin:.4em 0 .5em}
+.cn ul ul li{margin:.38em 0;line-height:1.7}
 .cn ul ul li::before{content:"–"}
 .cn ol{margin:.3em 0 .3em 1.7em}
-.cn ol li{margin:.22em 0}
-.cn b{color:var(--red)}
-.cn .k-blue{color:var(--blue);font-weight:700}
+.cn ol li{margin:.45em 0;line-height:1.78}
+.cn b{color:var(--ink)}
 .cn .k-red{color:var(--red);font-weight:700}
 .cn .hl{background:#fff1a8;padding:.02em .18em;border-radius:2px}
-.cn .thm{border:1.5px solid #1a1a1a;border-radius:10px;background:#fff;padding:12px 20px 10px;margin:16px 0}
+.cn .thm{border:1.5px solid #1a1a1a;border-radius:6px;background:#fff;padding:12px 20px 10px;margin:16px 0}
 .cn .thm-t{font-weight:700;margin:0 0 6px;line-height:1.5}
 .cn .thm p{margin:.3em 0}
 .cn .thm ul{margin:.2em 0}
@@ -36,3 +37,7 @@ body{background:#fff;color:#111}
 .cn .pf{margin:.4em 0 .4em 0;padding-left:14px;border-left:2px solid #1a1a1a}
 @media (max-width:760px){.paper{padding:0 16px}.cn{font-size:15.5px}}
 .cn .fig>svg{width:340px;max-width:96%;height:auto}
+/* ---- v3: 리드어 볼드 본문색, 디스플레이 수식 불릿 안 왼쪽 정렬 ---- */
+.cn .lt{font-weight:700;color:var(--ink)}
+.cn li .mjx-display{text-align:left;margin:.55em 0}
+.cn li .mjx-display svg{margin:0}
