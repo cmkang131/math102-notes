@@ -60,3 +60,22 @@ html[data-theme="dark"] svg [fill="#f2f2f2"]{fill:#e0e0e0}
 .cn .thm dl.deflist>div:first-child{border-top:none;padding-top:2px}
 .cn .thm dl.deflist>div:has(>dt:empty){grid-template-columns:1fr}
 .cn .thm dl.deflist>div>dt:empty{display:none}
+
+/* v3.4 tap: 클릭 가능 요소가 눌릴 것처럼 보이게 */
+a.tap{display:block;position:relative;border:1px solid var(--hairline,#d9d9d9);border-radius:6px;padding:10px 44px 10px 16px;margin:8px 0;color:inherit;text-decoration:none;cursor:pointer;background:#fff;transition:background .12s,border-color .12s,transform .12s}
+a.tap::after{content:"\2192";position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--gray,#666)}
+a.tap.na::after{display:none}
+a.tap:hover{background:var(--soft,#f2f2f2);border-color:var(--edge,#555)}
+a.tap:active{transform:translateY(1px)}
+a.tap:focus-visible{outline:2px solid var(--ink,#1a1a1a);outline-offset:2px}
+.tapc{display:inline-block;border:1px solid #dcdcdc;border-radius:4px;padding:1px 6px;color:inherit;text-decoration:none;cursor:pointer;transition:background .12s,border-color .12s}
+.tapc:hover{background:var(--soft,#f2f2f2);border-color:var(--edge,#555)}
+.tapc:active{transform:translateY(1px)}
+.tapc:focus-visible{outline:2px solid var(--ink,#1a1a1a);outline-offset:2px}
+
+.to-root{margin-left:8px;color:var(--gray)}
+.to-root:hover{color:var(--ink)}
+.idx-row.tap{display:flex;align-items:baseline;gap:14px;padding:11px 16px}
+.idx-row.tap .idx-num{margin-left:auto}
+/* v4: 예/부연 줄 인용 스타일 */
+.notes dl.deflist>div.exrow>dd{border-left:2px solid #d9d9d9;padding-left:10px;color:#444}
