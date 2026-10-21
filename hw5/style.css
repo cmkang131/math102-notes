@@ -162,9 +162,6 @@ details.dx summary:hover{color:var(--ink)}
 .notes dl.deflist dt{font-weight:700;font-size:15px;line-height:1.7}
 .notes dl.deflist dd{margin:0;line-height:1.75}
 .notes p.lead{font-weight:700;font-size:16.5px;line-height:1.7;margin:.5em 0 .9em;padding-left:12px;border-left:3px solid var(--ink)}
-.notes ol.steps{list-style:none;counter-reset:st;padding-left:0;margin:.8em 0}
-.notes ol.steps li{counter-increment:st;position:relative;padding-left:2.4em;margin:.7em 0;line-height:1.75}
-.notes ol.steps li::before{content:counter(st);position:absolute;left:0;top:.2em;width:1.6em;height:1.6em;border:1.3px solid var(--ink);border-radius:50%;text-align:center;font-size:12.5px;font-weight:700;line-height:1.5em}
 @media(max-width:560px){.notes dl.deflist>div{grid-template-columns:1fr}.notes dl.deflist dt{margin-bottom:0}}
 
 .notes dl.deflist.sum>div{grid-template-columns:minmax(9em,max-content) 1fr;padding:7px 2px}
@@ -206,3 +203,10 @@ a.tap:focus-visible{outline:2px solid var(--ink,#1a1a1a);outline-offset:2px}
 .idx-row.tap .idx-num{margin-left:auto}
 /* v4: 예/부연 줄 인용 스타일 */
 .notes dl.deflist>div.exrow>dd{border-left:2px solid #d9d9d9;padding-left:10px;color:#444}
+/* v4.1 UX 패치 */
+section.part:has(>.problem){border-top:none;padding-top:0}
+section.part:has(>.problem)+section.part{border-top:none}
+@media(max-width:560px){.phead{padding-right:64px}}
+details.tgl>summary{display:inline-block;border:1px solid var(--edge);border-radius:6px;padding:8px 16px;background:#fff;cursor:pointer;font-weight:700;font-size:15px}
+details.tgl>summary:hover{background:var(--soft)}
+details.tgl>summary:active{transform:translateY(1px)}
