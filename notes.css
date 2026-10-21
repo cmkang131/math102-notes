@@ -41,3 +41,15 @@ body{background:#fff;color:#111}
 .cn .lt{font-weight:700;color:var(--ink)}
 .cn li .mjx-display{text-align:left;margin:.55em 0}
 .cn li .mjx-display svg{margin:0}
+
+/* v3.2 dark mode: invert + hue-rotate keeps accent red as red; backgrounds set so result is #121212 */
+html[data-theme="dark"]{filter:invert(1) hue-rotate(180deg);background:#ededed}
+html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#ededed}
+html[data-theme="dark"] svg,html[data-theme="dark"] figure{background:transparent}
+.theme-toggle{position:fixed;top:10px;right:12px;z-index:50;font:500 12px 'Noto Sans KR',sans-serif;color:#1a1a1a;background:#fff;border:1px solid #1a1a1a;border-radius:4px;padding:3px 9px;cursor:pointer}
+html[data-theme="dark"] .theme-toggle{background:#fff}
+@media print{html[data-theme="dark"]{filter:none;background:#fff}html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#fff}.theme-toggle{display:none}}
+
+html[data-theme="dark"] .nb,html[data-theme="dark"] .bx,html[data-theme="dark"] .fbox,html[data-theme="dark"] table,html[data-theme="dark"] figure{background:#ededed}
+html[data-theme="dark"] svg [fill="#fff"],html[data-theme="dark"] svg [fill="#ffffff"]{fill:#ededed}
+html[data-theme="dark"] svg [fill="#f2f2f2"]{fill:#e0e0e0}

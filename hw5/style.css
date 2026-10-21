@@ -156,3 +156,34 @@ details.dx summary:hover{color:var(--ink)}
 .notes td,.notes th{border:none;padding:9px 12px;vertical-align:top;line-height:1.65;text-align:left}
 .notes thead th{border-bottom:1px solid var(--rule);font-weight:700;white-space:nowrap}
 .notes tbody tr+tr td,.notes tbody tr+tr th{border-top:1px solid #e2e2e2}
+.notes dl.deflist{margin:14px 0;border-top:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule)}
+.notes dl.deflist>div{display:grid;grid-template-columns:8.5em 1fr;gap:0 18px;padding:9px 2px;border-top:1px solid #e2e2e2}
+.notes dl.deflist>div:first-child{border-top:none}
+.notes dl.deflist dt{font-weight:700;font-size:15px;line-height:1.7}
+.notes dl.deflist dd{margin:0;line-height:1.75}
+.notes p.lead{font-weight:700;font-size:16.5px;line-height:1.7;margin:.5em 0 .9em;padding-left:12px;border-left:3px solid var(--ink)}
+.notes ol.steps{list-style:none;counter-reset:st;padding-left:0;margin:.8em 0}
+.notes ol.steps li{counter-increment:st;position:relative;padding-left:2.4em;margin:.7em 0;line-height:1.75}
+.notes ol.steps li::before{content:counter(st);position:absolute;left:0;top:.2em;width:1.6em;height:1.6em;border:1.3px solid var(--ink);border-radius:50%;text-align:center;font-size:12.5px;font-weight:700;line-height:1.5em}
+@media(max-width:560px){.notes dl.deflist>div{grid-template-columns:1fr}.notes dl.deflist dt{margin-bottom:0}}
+
+.notes dl.deflistlist.sum>div{grid-template-columns:11em 1fr;padding:7px 2px}
+.notes dl.deflistlist.sum dt{font-weight:700;font-size:14.5px}
+.notes dl.deflistlist.sum dd{font-size:15px;line-height:1.7}
+.notes .fbox{margin:10px 0}
+@media(max-width:560px){.notes dl.deflistlist.sum>div{grid-template-columns:1fr}}
+
+.notes dl.deflist>div:has(>dt:empty){grid-template-columns:1fr}
+.notes dl.deflist>div>dt:empty{display:none}
+
+/* v3.2 dark mode: invert + hue-rotate keeps accent red as red; backgrounds set so result is #121212 */
+html[data-theme="dark"]{filter:invert(1) hue-rotate(180deg);background:#ededed}
+html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#ededed}
+html[data-theme="dark"] svg,html[data-theme="dark"] figure{background:transparent}
+.theme-toggle{position:fixed;top:10px;right:12px;z-index:50;font:500 12px 'Noto Sans KR',sans-serif;color:#1a1a1a;background:#fff;border:1px solid #1a1a1a;border-radius:4px;padding:3px 9px;cursor:pointer}
+html[data-theme="dark"] .theme-toggle{background:#fff}
+@media print{html[data-theme="dark"]{filter:none;background:#fff}html[data-theme="dark"] body,html[data-theme="dark"] .paper{background:#fff}.theme-toggle{display:none}}
+
+html[data-theme="dark"] .nb,html[data-theme="dark"] .bx,html[data-theme="dark"] .fbox,html[data-theme="dark"] table,html[data-theme="dark"] figure{background:#ededed}
+html[data-theme="dark"] svg [fill="#fff"],html[data-theme="dark"] svg [fill="#ffffff"]{fill:#ededed}
+html[data-theme="dark"] svg [fill="#f2f2f2"]{fill:#e0e0e0}
