@@ -167,11 +167,11 @@ details.dx summary:hover{color:var(--ink)}
 .notes ol.steps li::before{content:counter(st);position:absolute;left:0;top:.2em;width:1.6em;height:1.6em;border:1.3px solid var(--ink);border-radius:50%;text-align:center;font-size:12.5px;font-weight:700;line-height:1.5em}
 @media(max-width:560px){.notes dl.deflist>div{grid-template-columns:1fr}.notes dl.deflist dt{margin-bottom:0}}
 
-.notes dl.deflistlist.sum>div{grid-template-columns:11em 1fr;padding:7px 2px}
-.notes dl.deflistlist.sum dt{font-weight:700;font-size:14.5px}
-.notes dl.deflistlist.sum dd{font-size:15px;line-height:1.7}
+.notes dl.deflist.sum>div{grid-template-columns:minmax(9em,max-content) 1fr;padding:7px 2px}
+.notes dl.deflist.sum dt{font-weight:700;font-size:14.5px}
+.notes dl.deflist.sum dd{font-size:15px;line-height:1.7}
 .notes .fbox{margin:10px 0}
-@media(max-width:560px){.notes dl.deflistlist.sum>div{grid-template-columns:1fr}}
+@media(max-width:560px){.notes dl.deflist.sum>div{grid-template-columns:1fr}}
 
 .notes dl.deflist>div:has(>dt:empty){grid-template-columns:1fr}
 .notes dl.deflist>div>dt:empty{display:none}
