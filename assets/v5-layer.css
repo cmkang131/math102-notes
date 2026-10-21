@@ -137,3 +137,10 @@ html[data-theme="dark"] details.v5d[open]>summary{background:#e0e0e0}
 /* 'Step N' 라벨형 단계 목록(ol.steps.step-label)은 라벨과 본문 사이 간격 보장 */
 .body.notes ol.steps.step-label>li{padding-left:5.6em}
 @media(max-width:560px){.body.notes ol.steps.step-label>li{padding-left:5em}}
+
+/* 모바일: 기출 표/연도별 보기 링크 터치 타깃 44px */
+@media(pointer:coarse){
+  .yg a,.xf a{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
+  .xf a.xl{padding:0 6px}
+  .yg-r{row-gap:4px}
+}
