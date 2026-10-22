@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MATH102 v6 위젯 데모 (A): 급수 · 뉴턴법 · 고정점 반복</title>
+<link rel="stylesheet" href="assets/v6.css">
+<style>
+@font-face{font-family:'Noto Sans KR';src:url(hw1/fonts/noto400.woff2) format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Noto Sans KR';src:url(hw1/fonts/noto700.woff2) format('woff2');font-weight:700;font-display:swap}
+body{font-family:'Noto Sans KR',sans-serif;color:#1a1a1a;background:#fff;max-width:760px;margin:24px auto;padding:0 16px}
+h1{font-size:20px} h2{font-size:15px;border-bottom:1.2px solid #1a1a1a;padding-bottom:3px;margin-top:36px}
+.cap{font-size:12.5px;margin-top:18px} code{font-size:11px;color:#666}
+.only h1,.only h2,.only p.lead{display:none} .only .demo{display:none} .only .demo.on{display:block}
+</style>
+</head>
+<body>
+<h1>MATH102 v6 위젯 데모 (A)</h1>
+<p class="lead" style="font-size:12.5px">series-converge · newton1d · newton2d · cobweb. 각 위젯 아래 data-config 예시를 그대로 복사해 쓸 수 있습니다. 주소 끝에 <code>?only=n-cos</code> 처럼 붙이면 그 예시 하나만 보입니다.</p>
+<h2 id="w-series-converge">series-converge</h2>
+<section class="demo" id="s-geo"><div class="cap">기하급수 r = 0.5 <code>#s-geo</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "geometric", "r": 0.5, "N": 20}'></div></section>
+<section class="demo" id="s-geo-neg"><div class="cap">기하급수 r = −0.8 (진동하며 수렴) <code>#s-geo-neg</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "geometric", "r": -0.8, "N": 40}'></div></section>
+<section class="demo" id="s-geo-m1"><div class="cap">기하급수 r = −1 (발산: S_n 이 1,0 반복) <code>#s-geo-m1</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "geometric", "r": -1, "N": 20}'></div></section>
+<section class="demo" id="s-geo-big"><div class="cap">기하급수 r = 1.5, N = 200 (축 밖 발산 표시) <code>#s-geo-big</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "geometric", "r": 1.5, "N": 200}'></div></section>
+<section class="demo" id="s-harm"><div class="cap">조화급수 Σ1/n 발산 <code>#s-harm</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "harmonic", "N": 100}'></div></section>
+<section class="demo" id="s-p2"><div class="cap">Σ1/n² = π²/6 <code>#s-p2</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "p2", "N": 30}'></div></section>
+<section class="demo" id="s-alt"><div class="cap">교대 조화급수 (조건수렴) <code>#s-alt</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "alt-harmonic", "N": 40}'></div></section>
+<section class="demo" id="s-nn1"><div class="cap">n/(n+1): 수열 → 1, 급수 발산 <code>#s-nn1</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "n-over-n1", "N": 30}'></div></section>
+<section class="demo" id="s-pser"><div class="cap">p급수 p = 1.5 <code>#s-pser</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset": "pseries", "p": 1.5, "N": 60}'></div></section>
+<section class="demo" id="s-custom"><div class="cap">직접 입력: 1/(n*(n+1)) (알려진 극한 없음으로 취급) <code>#s-custom</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"term": "1/(n*(n+1))", "N": 25}'></div></section>
+<section class="demo" id="s-bad"><div class="cap">잘못된 식: 1/n^2 → 안내 메시지 <code>#s-bad</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"term": "1/n^2", "N": 25}'></div></section>
+<section class="demo" id="s-badjson"><div class="cap">깨진 JSON → 안내 메시지 <code>#s-badjson</code></div>
+<div class="v6-widget" data-widget="series-converge" data-config='{"preset":"geometric" N:3}'></div></section>
+<h2 id="w-newton1d">newton1d</h2>
+<section class="demo" id="n-sqrt2"><div class="cap">x² − 2, x₀ = 1 (2차 수렴) <code>#n-sqrt2</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "sqrt2", "step": 15}'></div></section>
+<section class="demo" id="n-cos"><div class="cap">cos x − x <code>#n-cos</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "cos", "step": 14}'></div></section>
+<section class="demo" id="n-cycle"><div class="cap">x³ − 2x + 2, x₀ = 0 (2-주기) <code>#n-cycle</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "cycle", "step": 12}'></div></section>
+<section class="demo" id="n-atan"><div class="cap">arctan x, x₀ = 1.5 (발산) <code>#n-atan</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "atan", "step": 11}'></div></section>
+<section class="demo" id="n-flat"><div class="cap">x² − 2, x₀ = 0.1 (f&#x27; ≈ 0) <code>#n-flat</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "flat", "step": 8}'></div></section>
+<section class="demo" id="n-double"><div class="cap">(x − 1)² 중근 (1차 수렴) <code>#n-double</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "double", "step": 24}'></div></section>
+<section class="demo" id="n-zero"><div class="cap">x² − 2, x₀ = 0 (f&#x27;(0) = 0 에서 멈춤) <code>#n-zero</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"preset": "sqrt2", "x0": 0, "step": 5}'></div></section>
+<section class="demo" id="n-custom"><div class="cap">직접 입력: x³ − x − 1 (f&#x27; 수치미분) <code>#n-custom</code></div>
+<div class="v6-widget" data-widget="newton1d" data-config='{"f": "x*x*x-x-1", "x0": 1.5, "x": [-1, 2.5], "step": 13}'></div></section>
+<h2 id="w-newton2d">newton2d</h2>
+<section class="demo" id="d-xy"><div class="cap">원과 xy = 1, 시작 (2, 1): 첫 반복 <code>#d-xy</code></div>
+<div class="v6-widget" data-widget="newton2d" data-config='{"pair": "circle-xy", "x0": 2, "y0": 1, "step": 2}'></div></section>
+<section class="demo" id="d-xy-done"><div class="cap">원과 xy = 1: 수렴까지 <code>#d-xy-done</code></div>
+<div class="v6-widget" data-widget="newton2d" data-config='{"pair": "circle-xy", "x0": 2, "y0": 1, "step": 30}'></div></section>
+<section class="demo" id="d-near"><div class="cap">시작 (1, 1.01): det J ≈ 0 근처 → 큰 걸음 <code>#d-near</code></div>
+<div class="v6-widget" data-widget="newton2d" data-config='{"pair": "circle-xy", "x0": 1, "y0": 1.01, "step": 2}'></div></section>
+<section class="demo" id="d-sing"><div class="cap">시작 (1, 1): det J = 0 에서 멈춤 <code>#d-sing</code></div>
+<div class="v6-widget" data-widget="newton2d" data-config='{"pair": "circle-xy", "x0": 1, "y0": 1, "step": 5}'></div></section>
+<section class="demo" id="d-hyp"><div class="cap">원과 x² − y² = 1, 시작 (0.2, 1) <code>#d-hyp</code></div>
+<div class="v6-widget" data-widget="newton2d" data-config='{"pair": "circle-hyp", "x0": 0.2, "y0": 1, "step": 5}'></div></section>
+<h2 id="w-cobweb">cobweb</h2>
+<section class="demo" id="c-cos"><div class="cap">g = cos x <code>#c-cos</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "cos", "step": 12}'></div></section>
+<section class="demo" id="c-log28"><div class="cap">로지스틱 r = 2.8 (안정, 진동 접근) <code>#c-log28</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "logistic", "r": 2.8, "step": 30}'></div></section>
+<section class="demo" id="c-log3"><div class="cap">로지스틱 r = 3 (판정 불가) <code>#c-log3</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "logistic", "r": 3, "step": 40}'></div></section>
+<section class="demo" id="c-log32"><div class="cap">로지스틱 r = 3.2 (2-주기) <code>#c-log32</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "logistic", "r": 3.2, "step": 40}'></div></section>
+<section class="demo" id="c-log35"><div class="cap">로지스틱 r = 3.5 (4-주기) <code>#c-log35</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "logistic", "r": 3.5, "step": 60}'></div></section>
+<section class="demo" id="c-log39"><div class="cap">로지스틱 r = 3.9 (혼돈) <code>#c-log39</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "logistic", "r": 3.9, "step": 60}'></div></section>
+<section class="demo" id="c-half"><div class="cap">g = x/2 + 1 <code>#c-half</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "half", "step": 8}'></div></section>
+<section class="demo" id="c-square"><div class="cap">g = x², x₀ = 1.05 (반발) <code>#c-square</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"preset": "square", "x0": 1.05, "step": 8}'></div></section>
+<section class="demo" id="c-custom"><div class="cap">직접 입력: g = 1 + 1/x <code>#c-custom</code></div>
+<div class="v6-widget" data-widget="cobweb" data-config='{"g": "1+1/x", "x": [0.5, 2.5], "x0": 1, "step": 10}'></div></section>
+<script>
+(function(){var m=/[?&]only=([\w-]+)/.exec(location.search);if(!m)return;
+document.body.classList.add("only");var s=document.getElementById(m[1]);if(s)s.classList.add("on");})();
+</script>
+<script src="assets/v6.js"></script>
+<script src="assets/v6-extra-a.js"></script>
+</body>
+</html>
