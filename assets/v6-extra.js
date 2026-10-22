@@ -2131,10 +2131,14 @@ reg("path-limit",function(el,cfg){
   function safeEval(f, x, y) {
     try {
       var v = f(x, y);
-      return Number.isFinite(v) ? {ok:true, value:v} :
-        {ok:false, error:"함수값이 유한하지 않습니다."};
+      return Number.isFinite(v)
+        ? {ok: true, value: v}
+        : {ok: false, error: "함수값이 유한하지 않습니다."};
     } catch (e) {
-      return {ok:false, error:String(e && e.message || e)};
+      return {
+        ok: false,
+        error: String(e && e.message || e)
+      };
     }
   }
 
@@ -2146,8 +2150,8 @@ reg("path-limit",function(el,cfg){
 
     if (!xp.ok || !xm.ok || !yp.ok || !ym.ok) {
       return {
-        ok:false,
-        error:"편도함수 계산 중 함수 평가에 실패했습니다. " +
+        ok: false,
+        error: "편도함수 계산 중 함수 평가에 실패했습니다. " +
           (!xp.ok ? "x+h: " + xp.error :
            !xm.ok ? "x−h: " + xm.error :
            !yp.ok ? "y+h: " + yp.error : "y−h: " + ym.error)
@@ -2158,10 +2162,13 @@ reg("path-limit",function(el,cfg){
     var gy = (yp.value-ym.value)/(2*h);
 
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
-      return {ok:false, error:"중앙차분 결과가 유한하지 않습니다."};
+      return {
+        ok: false,
+        error: "중앙차분 결과가 유한하지 않습니다."
+      };
     }
 
-    return {ok:true, gradient:[gx, gy]};
+    return {ok: true, gradient: [gx, gy]};
   }
 
   function fmtVec(v, digits) {
@@ -2177,8 +2184,12 @@ reg("path-limit",function(el,cfg){
 
     ctx.save();
     ctx.fillStyle = WHITE;
-    ctx.fillRect(0, 0, cv.canvas ? cv.canvas.width : 720,
-      cv.canvas ? cv.canvas.height : 375);
+    ctx.fillRect(
+      0, 0,
+      cv.canvas ? cv.canvas.width : 720,
+      cv.canvas ? cv.canvas.height : 375
+    );
+
     ctx.fillStyle = INK;
     ctx.strokeStyle = INK;
     ctx.font = "12px sans-serif";
@@ -2191,7 +2202,7 @@ reg("path-limit",function(el,cfg){
     try {
       compiled = X.compile2(expr);
     } catch (e) {
-      compiled = {err:String(e && e.message || e)};
+      compiled = {err: String(e && e.message || e)};
     }
 
     if (!compiled || compiled.err ||
@@ -2210,7 +2221,7 @@ reg("path-limit",function(el,cfg){
     if (!f0r.ok) {
       X.setLines(box, [
         "기준점 p에서 함수를 평가할 수 없습니다.",
-        "p = " + fmtVec([a,b], 2),
+        "p = " + fmtVec([a, b], 2),
         f0r.error,
         "함수식과 기준점을 확인하세요."
       ]);
@@ -2261,19 +2272,22 @@ reg("path-limit",function(el,cfg){
     if (fp.ok) {
       differenceQuotient = (fp.value-f0)/directionalStep;
       quotientError = Math.abs(differenceQuotient-du);
+
       if (!Number.isFinite(differenceQuotient)) {
         differenceQuotient = null;
         quotientError = null;
       }
     }
 
-    var gradAngle = norm > EPS ? Math.atan2(grad[1], grad[0]) : null;
-    var maxDirection = gradAngle === null ? null :
-      [Math.cos(gradAngle), Math.sin(gradAngle)];
+    var gradAngle = norm > EPS
+      ? Math.atan2(grad[1], grad[0])
+      : null;
 
-    // Responsive drawing: two logical panels share a centered canvas.
-    var W = 720;
-    var H = 375;
+    var maxDirection = gradAngle === null
+      ? null
+      : [Math.cos(gradAngle), Math.sin(gradAngle)];
+
+    // 두 패널은 각각 한 번만 프레임을 생성한다.
     var panelW = 350;
     var panelH = 340;
     var top = 25;
@@ -2285,25 +2299,22 @@ reg("path-limit",function(el,cfg){
     ctx.fillText("기울기와 방향", leftX+34, 16);
     ctx.fillText("방향도함수와 각도", rightX+35, 16);
 
+    // 왼쪽 패널: translate 이후 X.frame을 정확히 한 번 호출.
+    ctx.save();
+    ctx.translate(leftX, top);
+
     var left = X.frame(
       ctx, panelW, panelH,
       [-3, 3], [-3, 3],
-      {L:38, R:18, T:25, B:32, nx:4, ny:4}
+      {L: 38, R: 18, T: 25, B: 32, nx: 4, ny: 4}
     );
 
-    // Frame coordinates are panel-local. Translate only the drawing context.
-    ctx.save();
-    ctx.translate(leftX, top);
-    left = X.frame(
-      ctx, panelW, panelH,
-      [-3, 3], [-3, 3],
-      {L:38, R:18, T:25, B:32, nx:4, ny:4}
-    );
     left.clip();
 
     X.dot(ctx, left.px(a), left.py(b), 4, INK);
 
-    // Draw a normalized gradient arrow; label makes its display scaling explicit.
+    // 빨강: 최대 증가 방향. 검정: 선택한 단위 방향.
+    // 두 화살표는 비교를 위해 길이를 정규화한다.
     if (norm > EPS) {
       X.arrow(
         ctx,
@@ -2322,11 +2333,12 @@ reg("path-limit",function(el,cfg){
       );
 
       var tangent = [-maxDirection[1], maxDirection[0]];
+
       line(
         ctx, left,
         a-2.3*tangent[0], b-2.3*tangent[1],
         a+2.3*tangent[0], b+2.3*tangent[1],
-        INK, 1, [4,4]
+        INK, 1, [4, 4]
       );
     } else {
       X.arrow(
@@ -2340,14 +2352,16 @@ reg("path-limit",function(el,cfg){
 
     ctx.restore();
 
+    // 오른쪽 패널: 기존 방향도함수 곡선.
     ctx.save();
     ctx.translate(rightX, top);
 
     var m = Math.max(1, norm*1.2);
+
     var right = X.frame(
       ctx, panelW, panelH,
       [0, TAU], [-m, m],
-      {L:43, R:16, T:25, B:32, nx:4, ny:4}
+      {L: 43, R: 16, T: 25, B: 32, nx: 4, ny: 4}
     );
 
     right.clip();
@@ -2361,14 +2375,17 @@ reg("path-limit",function(el,cfg){
       INK, 1.8
     );
 
-    line(ctx, right, 0, 0, TAU, 0, INK, 1, [3,4]);
+    line(ctx, right, 0, 0, TAU, 0, INK, 1, [3, 4]);
 
     if (norm > EPS) {
       var maxAngle = (gradAngle+TAU)%TAU;
       var minAngle = (maxAngle+Math.PI)%TAU;
 
-      line(ctx, right, maxAngle, 0, maxAngle, norm,
-        RED, 1.3, [4,3]);
+      line(
+        ctx, right,
+        maxAngle, 0, maxAngle, norm,
+        RED, 1.3, [4, 3]
+      );
 
       X.dot(ctx, right.px(maxAngle), right.py(norm), 4, RED);
       X.dot(ctx, right.px(minAngle), right.py(-norm), 4, RED);
@@ -2376,21 +2393,25 @@ reg("path-limit",function(el,cfg){
       var perpendicular1 = (maxAngle+Math.PI/2)%TAU;
       var perpendicular2 = (maxAngle+3*Math.PI/2)%TAU;
 
-      X.dot(ctx, right.px(perpendicular1), right.py(0), 3, INK);
-      X.dot(ctx, right.px(perpendicular2), right.py(0), 3, INK);
+      X.dot(
+        ctx, right.px(perpendicular1), right.py(0), 3, INK
+      );
+      X.dot(
+        ctx, right.px(perpendicular2), right.py(0), 3, INK
+      );
     }
 
     X.dot(ctx, right.px(theta), right.py(du), 5, RED);
 
     ctx.restore();
-    ctx.restore();
 
-    var analytic = index < 4 ? presetGradients[index](a,b) : null;
-    var analyticError = analytic ?
-      Math.hypot(analytic[0]-grad[0], analytic[1]-grad[1]) : null;
+    var analytic = index < 4 ? presetGradients[index](a, b) : null;
+    var analyticError = analytic
+      ? Math.hypot(analytic[0]-grad[0], analytic[1]-grad[1])
+      : null;
 
     var lines = [
-      "p = " + fmtVec([a,b], 3) + ", f(p) = " + fmt(f0, 6),
+      "p = " + fmtVec([a, b], 3) + ", f(p) = " + fmt(f0, 6),
       "수치 기울기 ∇f ≈ " + fmtVec(grad, 7),
       "‖∇f‖ ≈ " + fmt(norm, 7) +
         " · 두 중앙차분 결과 차이 ≈ " + fmt(errorEst, 8),
