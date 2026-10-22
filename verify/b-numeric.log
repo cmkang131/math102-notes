@@ -1,4 +1,4 @@
-# verify/b-numeric.mjs — 2026-10-22T05:55:47.425Z
+# verify/b-numeric.mjs — 2026-10-22T06:02:59.499Z
 node v22.23.2; 위젯 계산 = assets/v6-extra-b.js 의 CALC 블록(vm 로드), 독립 계산 = 이 파일의 별도 공식
 
 | 그룹 | 항목 | 위젯 값 | 독립 계산 | 결과 |
@@ -101,6 +101,14 @@ node v22.23.2; 위젯 계산 = assets/v6-extra-b.js 의 CALC 블록(vm 로드), 
 | 방향도함수 | √|xy| @0: f_x=f_y=0 이지만 미분불가 감지 | [0,0,true] | [0,0,true] | PASS |
 | 방향도함수 | √|xy| @0: 45° 한쪽 미분 = 1/√2 | 0.7071067812 | 0.7071067812 | PASS |
 | 방향도함수 | x²+y² @0: ∇f=0, 미분가능 | [0,0,true] | [0,0,true] | PASS |
+| 방향도함수 | 3000x² @0: 미분가능 판정 = 가능 | true | true | PASS |
+| 방향도함수 | 10⁴(x²+y²) @0: 미분가능 판정 = 가능 | true | true | PASS |
+| 방향도함수 | sin(50x)·y @(0.3,1): 미분가능 판정 = 가능 | true | true | PASS |
+| 방향도함수 | 10⁸+x @(1,1): 미분가능 판정 = 가능 | true | true | PASS |
+| 방향도함수 | |x|+y @0: 미분가능 판정 = 불가 | false | false | PASS |
+| 방향도함수 | |x−1| @(1,0.5): 미분가능 판정 = 불가 | false | false | PASS |
+| 방향도함수 | 10⁸+x: f_x ≈ 1 (0으로 지워지지 않음) | true | true | PASS |
+| gd 1D custom | √x, η=4: 정의역 이탈 → undef 감지 (k=1) | ["undef",1] | ["undef",1] | PASS |
 | 이차형식 | [[2,0.6],[0.6,1]] λ₁ | 0.7189750324 | 0.7189750324 | PASS |
 | 이차형식 | [[2,0.6],[0.6,1]] λ₂ | 2.281024968 | 2.281024968 | PASS |
 | 이차형식 |   min_{|u|=1} Q = λ₁ (격자) | 0.7189750324 | 0.7189750324 | PASS |
@@ -232,4 +240,4 @@ node v22.23.2; 위젯 계산 = assets/v6-extra-b.js 의 CALC 블록(vm 로드), 
 | 등록 | v6.js 이름(slider-plot,stepthrough)과 충돌 없음 | [] | [] | PASS |
 | 등록 | V6 객체에 새 속성 노출 없음 | ["GRID","INK","RED","axes","canvas","makeFn","register","title"] | ["GRID","INK","RED","axes","canvas","makeFn","register","title"] | PASS |
 
-합계: 228/228 PASS, 0 FAIL
+합계: 236/236 PASS, 0 FAIL

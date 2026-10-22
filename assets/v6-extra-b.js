@@ -61,11 +61,12 @@ function checkExpr(src,vars){
 }
 /* ---- gradient descent ---- */
 /* iterate x_{k+1} = x_k - eta*df(x_k); stop when |x|>cap (diverged) or value undefined */
-function gd1(df,eta,x0,N,cap){
+function gd1(df,eta,x0,N,cap,f){
   var xs=[x0],status="ok",at=-1;
   for(var k=0;k<N;k++){
     var g=df(xs[k]),nx=xs[k]-eta*g;
     if(g!==g||nx!==nx){status="undef";at=k+1;break;}
+    if(f&&isFinite(nx)&&Math.abs(nx)<=cap){var fv=f(nx);if(fv!==fv){xs.push(nx);status="undef";at=k+1;break;}}
     if(!isFinite(nx)||Math.abs(nx)>cap){xs.push(nx);status="div";at=k+1;break;}
     xs.push(nx);
   }
@@ -110,23 +111,34 @@ function itersFor(rho,tol){
 function grad(f,a,b){
   var hx=1e-5*Math.max(1,Math.abs(a)),hy=1e-5*Math.max(1,Math.abs(b));
   var fx=(f(a+hx,b)-f(a-hx,b))/(2*hx),fy=(f(a,b+hy)-f(a,b-hy))/(2*hy);
-  /* one-sided check (kinks such as sqrt(x²+y²) at 0) */
-  var h1=1e-6*Math.max(1,Math.abs(a)),h2=1e-6*Math.max(1,Math.abs(b)),f0=f(a,b);
-  var xf=(f(a+h1,b)-f0)/h1,xb=(f0-f(a-h1,b))/h1,yf=(f(a,b+h2)-f0)/h2,yb=(f0-f(a,b-h2))/h2;
-  var kink=Math.abs(xf-xb)>1e-2*(1+Math.abs(xf)+Math.abs(xb))||Math.abs(yf-yb)>1e-2*(1+Math.abs(yf)+Math.abs(yb));
+  /* one-sided check (kinks such as |x| at 0): forward − backward quotient gap is ≈ h·f″ for
+     smooth f (halves with h) but stays O(1) at a kink (does not shrink) */
+  var f0=f(a,b);
+  function gap(dx,dy){return (f(a+dx,b+dy)-f0)/Math.hypot(dx,dy)-(f0-f(a-dx,b-dy))/Math.hypot(dx,dy);}
+  var h1=1e-6*Math.max(1,Math.abs(a)),h2=1e-6*Math.max(1,Math.abs(b));
+  var kink=persists(gap(h1,0),gap(h1/2,0),f0,h1)||persists(gap(0,h2),gap(0,h2/2),f0,h2);
   return {fx:fx,fy:fy,kink:kink};
+}
+/* an O(h) discrepancy should halve when h halves; a real one (kink) does not */
+function persists(e1,e2,f0,h){
+  if(e1!==e1||e2!==e2)return true;
+  var noise=1e-6+4e-15*Math.abs(f0)/h;
+  return Math.abs(e1)>noise&&Math.abs(e2)>0.75*Math.abs(e1);
 }
 function dirDeriv(fx,fy,th){return fx*Math.cos(th)+fy*Math.sin(th);}
 /* one-sided difference quotient [f(P+hu) - f(P)]/h (the definition, h small) */
 function oneSided(f,a,b,th,h){h=h||1e-6*Math.max(1,Math.abs(a),Math.abs(b));return (f(a+h*Math.cos(th),b+h*Math.sin(th))-f(a,b))/h;}
 /* differentiability probe: does grad·u match the one-sided quotient in 16 directions? */
 function diffCheck(f,a,b,fx,fy){
-  var n=Math.hypot(fx,fy),worst=0;
-  for(var i=0;i<16;i++){var t=i*Math.PI/8,q=oneSided(f,a,b,t);
-    if(q!==q)return {ok:false,worst:NaN};
-    worst=Math.max(worst,Math.abs(q-dirDeriv(fx,fy,t)));}
-  return {ok:worst<=2e-3*(1+n),worst:worst};
+  var h=1e-6*Math.max(1,Math.abs(a),Math.abs(b)),f0=f(a,b),worst=0,bad=false;
+  for(var i=0;i<16;i++){var t=i*Math.PI/8,g=dirDeriv(fx,fy,t);
+    var e1=oneSided(f,a,b,t,h)-g,e2=oneSided(f,a,b,t,h/2)-g;
+    if(e1!==e1||e2!==e2)return {ok:false,worst:NaN};
+    worst=Math.max(worst,Math.abs(e1));
+    if(persists(e1,e2,f0,h))bad=true;}
+  return {ok:!bad,worst:worst};
 }
+function stepH(a,b){return 1e-6*Math.max(1,Math.abs(a),Math.abs(b));}
 /* ---- quadratic form Q = a x² + 2b xy + c y², matrix [[a,b],[b,c]] ---- */
 function eig2(a,b,c){
   var m=(a+c)/2,R=Math.hypot(a-c,2*b)/2,det=a*c-b*b,l1,l2;
@@ -158,7 +170,7 @@ function angleBetween(u,v){
   return Math.atan2(Math.abs(u[0]*v[1]-u[1]*v[0]),dot(u,v));
 }
 return {fmt:fmt,snap:snap,sup:sup,niceTicks:niceTicks,checkExpr:checkExpr,gd1:gd1,classifyQuadLR:classifyQuadLR,
-  gd2:gd2,f2:f2,rates2:rates2,itersFor:itersFor,grad:grad,dirDeriv:dirDeriv,oneSided:oneSided,diffCheck:diffCheck,eig2:eig2,Qval:Qval,
+  gd2:gd2,f2:f2,rates2:rates2,itersFor:itersFor,grad:grad,dirDeriv:dirDeriv,oneSided:oneSided,diffCheck:diffCheck,stepH:stepH,eig2:eig2,Qval:Qval,
   classifyQ:classifyQ,det2:det2,apply2:apply2,dot:dot,proj:proj,angleBetween:angleBetween};
 })();
 /*CALC-END*/
@@ -303,6 +315,12 @@ var LONG={
   bounce:"η = 2/c → r = −1: x₀ 와 −x₀ 사이를 왕복, 수렴하지 않음",
   div:"η > 2/c → r < −1: |xₖ| = |r|ᵏ|x₀| 로 진동하며 발산",
   zero:"η = 0: xₖ = x₀ 그대로",neg:"η < 0: 기울기 방향(오르막)으로 이동해 발산",badc:"c ≤ 0 이면 최솟값이 없음"};
+function quarticHead(eta,x0){
+  if(!(eta>0))return eta===0?"η = 0: 움직이지 않음":"η < 0: 오르막으로 이동";
+  if(x0===0)return "x₀ = 0: 이미 최솟점";
+  var p=eta*x0*x0,tol=1e-9;
+  return "ηx₀² = "+fmt(p,3)+(Math.abs(p-2)<tol?" = 2 (|x₁| = |x₀|)":p<2?" < 2 (|x₁| < |x₀|)":" > 2 (|x₁| > |x₀|)");
+}
 function gd1d(el,cfg){
   var kind=cfg.fn==="quartic"?"quartic":(cfg.fn==="custom"||(cfg.fn==null&&typeof cfg.f==="string"))?"custom":"quad";
   var c=num(cfg.c,2,0.1,50);
@@ -337,7 +355,8 @@ function gd1d(el,cfg){
   var st=stateBox(el);
   var ctl=controls(el);
   var cS=null;
-  if(kind==="quad")cS=slider(ctl,"c ",0.5,Math.max(4,c),0.1,c,function(v){return fmt(v,2);},function(v){c=v;setFns();draw();});
+  if(kind==="quad")cS=slider(ctl,"c ",Math.min(0.5,c),Math.max(4,c),0.1,c,function(v){return fmt(v,2);},function(v){c=v;setFns();
+    var top=parseFloat((Math.max(2.6/c,etas[0],etas[1],etas[2])).toPrecision(3));eS.forEach(function(sl){sl.range(0,top);});draw();});
   var eS=etas.map(function(e,i){return slider(ctl,"η"+sub(i+1)+" ",0,parseFloat(etaTop.toPrecision(3)),0.005,e,function(v){return fmt(v,3);},function(v){etas[i]=v;draw();});});
   var lg=document.createElement("label");var cb=document.createElement("input");cb.type="checkbox";cb.checked=logy;
   lg.appendChild(cb);lg.appendChild(document.createTextNode(" 세로축 로그 눈금"));ctl.appendChild(lg);
@@ -353,7 +372,7 @@ function gd1d(el,cfg){
   function draw(){
     ctx.clearRect(0,0,W,cv.height);
     pos.textContent="k = "+k+" / "+N;bPrev.disabled=k===0;bNext.disabled=k===N;
-    var runs=etas.map(function(e){return calc.gd1(df,e,x0,N,CAP);});
+    var runs=etas.map(function(e){return calc.gd1(df,e,x0,N,CAP,f);});
     /* ---- top: three curve panels ---- */
     var Rx=Math.max(Math.abs(x0)*1.3,0.5);
     var xr=Array.isArray(cfg.xr)&&cfg.xr.length===2&&isFinite(cfg.xr[0])&&isFinite(cfg.xr[1])&&cfg.xr[1]>cfg.xr[0]?[+cfg.xr[0],+cfg.xr[1]]:[-Rx,Rx];
@@ -373,7 +392,7 @@ function gd1d(el,cfg){
       if(cl)v2=VERDICT[cl.kind];
       else if(run.status==="div")v2="발산 (k = "+run.at+"에서 |x| > 10⁶)";
       else if(run.status==="undef")v2="k = "+run.at+"에서 값 정의 안 됨";
-      else v2=kind==="quartic"?"ηx₀² = "+fmt(etas[j]*x0*x0,3)+(etas[j]*x0*x0<2&&etas[j]>0?" < 2":" ≥ 2"):"x"+sub(N)+" = "+fmt(run.xs[run.xs.length-1],4);
+      else v2=kind==="quartic"?quarticHead(etas[j],x0):"x"+sub(N)+" = "+fmt(run.xs[run.xs.length-1],4);
       var bad=(cl&&(cl.kind==="div"||cl.kind==="bounce"||cl.kind==="neg"))||run.status!=="ok";
       text(ctx,v2,R.x,32,{size:12,color:bad?RED:INK,halo:false});
       P.clip();
@@ -425,6 +444,7 @@ function gd1d(el,cfg){
       var pts=[];
       for(var s=0;s<=Math.min(k,r.xs.length-1);s++){
         var v=f(r.xs[s]),X=PB.px(s),Y;
+        if(v!==v)break;
         if(useLog){if(v>0&&isFinite(v))Y=PB.py(Math.log10(v));else if(v===0){Y=RB.y+RB.h-4;zeroNote=true;}else Y=-1e4;}
         else Y=isFinite(v)?PB.py(v):-1e4;
         if(Y<RB.y+3)pinned=true;
@@ -456,7 +476,7 @@ function gd1d(el,cfg){
       etas.forEach(function(e,j){var cl=calc.classifyQuadLR(c,e);var s="η"+sub(j+1)+" = "+fmt(e,3)+":  "+LONG[cl.kind];
         if(cl.kind==="mono"&&cl.r>=0.9)s+=" — 느림 (단계당 오차 ×"+fmt(cl.r,3)+")";
         L.push(cl.kind==="div"||cl.kind==="bounce"||cl.kind==="neg"?red(s):s);});
-      L.push("f(xₖ) = r²ᵏ·f(x₀) → 로그 눈금에서 기울기 log₁₀(r²)인 직선 (|r| 작을수록 가파름)");
+      L.push("f(xₖ) = r²ᵏ·f(x₀) → (r ≠ 0 일 때) 로그 눈금에서 기울기 log₁₀(r²)인 직선, |r| 작을수록 가파름. r = 0 이면 한 걸음 뒤 f = 0");
     }else if(kind==="quartic"){
       L.push(b(fLabel+",  "+dfLabel+"  →  xₖ₊₁ = xₖ(1 − η·xₖ²)"));
       L.push("|xₖ₊₁| < |xₖ| ⇔ 0 < η·xₖ² < 2.  기준이 xₖ에 따라 달라짐 — ‘η < 2/c’ 같은 고정 기준은 이차함수에서만 정확");
@@ -474,7 +494,7 @@ function gd1d(el,cfg){
   draw();return draw;
 }
 function gd2d(el,cfg,withHead){
-  if(withHead)sectionHead(el,"2차원: f(x, y) = ½(x² + κy²) — 조건수 κ가 크면 지그재그");
+  if(withHead)sectionHead(el,"2차원: f(x, y) = ½(x² + κy²) — ηκ > 1 이면 y 부호가 바뀌며 지그재그, κ가 크면 느림");
   var kappa=num(cfg.kappa,10,1,100);
   var st0=Array.isArray(cfg.start2d)?cfg.start2d:[];
   var X0=num(st0[0],4,-100,100),Y0=num(st0[1],1,-100,100);
@@ -605,18 +625,18 @@ mount("directional-derivative",function(el,cfg){
   button(ctl,"u = 접선 방향",function(){if(g.n>0){th=(Math.atan2(g.fy,g.fx)+Math.PI/2+2*Math.PI)%(2*Math.PI);tS.set(th/DEG);draw();}});
   function draw(){
     ctx.clearRect(0,0,W,cv.height);
-    var f0=F(a,bb),fx,fy,kink=false,mismatch=null;
+    var f0=F(a,bb),fx,fy,mismatch=null;
+    /* differentiability is judged from f itself (numeric gradient), never from config fx, fy */
+    var gn=calc.grad(F,a,bb),thr=1e-9*(1+Math.abs(f0));
+    var nfx=Math.abs(gn.fx)<thr?0:gn.fx,nfy=Math.abs(gn.fy)<thr?0:gn.fy;
     if(FX){fx=FX([a,bb]);fy=FY([a,bb]);
-      var gn=calc.grad(F,a,bb);kink=gn.kink;
-      if(isFinite(gn.fx)&&isFinite(gn.fy)&&Math.hypot(gn.fx-fx,gn.fy-fy)>1e-4*(1+Math.hypot(fx,fy)))mismatch=gn;}
-    else{var gr=calc.grad(F,a,bb);fx=gr.fx;fy=gr.fy;kink=gr.kink;}
-    var sc=1+Math.abs(f0);
-    fx=Math.abs(fx)<1e-7*sc?0:fx;fy=Math.abs(fy)<1e-7*sc?0:fy;
+      if(isFinite(gn.fx)&&isFinite(gn.fy)&&isFinite(fx)&&isFinite(fy)&&Math.hypot(gn.fx-fx,gn.fy-fy)>1e-4*(1+Math.hypot(fx,fy)))mismatch=gn;}
+    else{fx=nfx;fy=nfy;}
     var n=Math.hypot(fx,fy);g={fx:fx,fy:fy,n:n};
     var ok=isFinite(f0)&&isFinite(fx)&&isFinite(fy);
-    var ux=Math.cos(th),uy=Math.sin(th);
+    var ux=Math.cos(th),uy=Math.sin(th),hS=calc.stepH(a,bb),hTxt=fmt(hS,3);
     var nd=false;
-    if(ok){var dc=calc.diffCheck(F,a,bb,fx,fy);nd=kink||!dc.ok;}
+    if(ok&&isFinite(nfx)&&isFinite(nfy))nd=gn.kink||!calc.diffCheck(F,a,bb,nfx,nfy).ok;
     var D=ok?calc.snap(calc.dirDeriv(fx,fy,th),n):NaN;
     var Dq=ok?calc.oneSided(F,a,bb,th):NaN;
     /* left: vectors at P */
@@ -631,7 +651,7 @@ mount("directional-derivative",function(el,cfg){
     var best=0,bd=-1;for(var c8=0;c8<16;c8++){var ca=c8*Math.PI/8+Math.PI/16,md=7;
       busy.forEach(function(bq){var dd=Math.abs(Math.atan2(Math.sin(ca-bq),Math.cos(ca-bq)));md=Math.min(md,dd);});if(md>bd){bd=md;best=ca;}}
     text(ctx,"단위원",P.px(1.08*Math.cos(best)),P.py(1.08*Math.sin(best))+4,{size:11,color:GRAY,align:Math.cos(best)>=0?"left":"right"});
-    if(ok&&nd)text(ctx,"미분 불가능 → ∇f 화살표 생략",R.x+6,R.y+16,{size:11.5,color:RED});
+    if(ok&&nd)text(ctx,"미분 불가능해 보임 → ∇f 화살표 생략",R.x+6,R.y+16,{size:11.5,color:RED});
     if(ok&&!nd&&n>0){
       var tx=-fy/n,ty=fx/n,T=1.15*vmax;
       line(ctx,P.px(-T*tx),P.py(-T*ty),P.px(T*tx),P.py(T*ty),INK,1.2,[7,4]);
@@ -656,7 +676,7 @@ mount("directional-derivative",function(el,cfg){
     var RB={x:410,y:28,w:290,h:250};
     var A=ok&&n>0?n:1,qs=[];
     if(ok&&nd){A=0;for(var j=0;j<=360;j+=2){var qv=calc.oneSided(F,a,bb,j*DEG);qs.push(qv);if(isFinite(qv))A=Math.max(A,Math.abs(qv));}if(!(A>0))A=1;}
-    var P2=panel(ctx,RB,[0,360],[-1.45*A,1.45*A],{xticks:[0,90,180,270,360],xfmt:function(t){return t+"°";},ny:5,xlabel:"θ",ylabel:nd?"[f(P+hu) − f(P)]/h  (h = 10⁻⁶)":"D_u f (θ)"});
+    var P2=panel(ctx,RB,[0,360],[-1.45*A,1.45*A],{xticks:[0,90,180,270,360],xfmt:function(t){return t+"°";},ny:5,xlabel:"θ",ylabel:nd?"[f(P+hu) − f(P)]/h  (h = "+hTxt+")":"D_u f (θ)"});
     if(!ok){text(ctx,"이 점에서 f 또는 편도함수를 계산할 수 없습니다",RB.x+RB.w/2,RB.y+RB.h/2,{align:"center",color:RED});}
     else if(nd){
       P2.clip();ctx.strokeStyle=INK;ctx.lineWidth=1.8;ctx.beginPath();var pen=false;
@@ -684,19 +704,19 @@ mount("directional-derivative",function(el,cfg){
     var L=[];
     if(!ok){L.push(red("점 P에서 f(P) 또는 편도함수가 정의되지 않습니다 (정의역 밖?). a, b를 옮겨 보세요."));st.innerHTML=L.join("\n");return;}
     L.push(b("f(x, y) = "+esc(src))+",   P = ("+fmt(a,3)+", "+fmt(bb,3)+"),   f(P) = "+fmt(f0,4));
+    if(mismatch)L.push(red("주의: config의 fx, fy = ("+fmt(fx,4)+", "+fmt(fy,4)+") 가 f의 수치미분 ("+fmt(mismatch.fx,4)+", "+fmt(mismatch.fy,4)+")과 다릅니다. 식을 확인하세요."));
     if(nd){
-      L.push(red("이 점에서 f는 미분가능하지 않습니다 (수치 판정: 한쪽 차분이 서로 다르거나, 어떤 방향에서 [f(P+hu) − f(P)]/h ≠ ∇f·u)."));
-      L.push(red("따라서 D_u f = ∇f·u 공식을 쓸 수 없고 ∇f 그림은 생략합니다. 중심차분이 주는 값 ("+fmt(fx,4)+", "+fmt(fy,4)+")는 기울기가 아닙니다."));
-      L.push("정의대로 계산한 한쪽 방향 미분: [f(P + hu) − f(P)] / h = "+fmt(calc.snap(Dq,1),4)+"   (θ = "+fmt(th/DEG,1)+"°, h = 10⁻⁶) — 오른쪽 그래프");
+      L.push(red("이 점에서 f는 수치적으로 미분가능하지 않아 보입니다 (h를 반으로 줄여도 한쪽 차분의 어긋남이 줄지 않음)."));
+      L.push(red("그렇다면 D_u f = ∇f·u 공식을 쓸 수 없으므로 ∇f 그림은 생략합니다. 중심차분 값 ("+fmt(nfx,4)+", "+fmt(nfy,4)+")는 기울기로 해석하면 안 됩니다."));
+      L.push("정의대로 계산한 한쪽 방향 미분: [f(P + hu) − f(P)] / h = "+fmt(calc.snap(Dq,1),4)+"   (θ = "+fmt(th/DEG,1)+"°, h = "+hTxt+") — 오른쪽 그래프");
       st.innerHTML=L.join("\n");return;
     }
     L.push("∇f(P) = (f_x, f_y) = ("+fmt(fx,4)+", "+fmt(fy,4)+"),   |∇f| = "+fmt(n,4)+(FX?"   (config의 fx, fy 사용)":"   (중심차분 수치미분)"));
     L.push("u = (cos θ, sin θ) = ("+fmt(calc.snap(ux,1),4)+", "+fmt(calc.snap(uy,1),4)+")");
     L.push(b("D_u f = f_x cos θ + f_y sin θ = "+fmt(D,4))+(n>0?"  = |∇f| cos(θ − θ_∇),  θ_∇ = "+fmt(((Math.atan2(fy,fx)/DEG)+360)%360,2)+"°":""));
-    L.push("검산 (정의): [f(P + hu) − f(P)] / h = "+fmt(Math.round(Dq*1e4)/1e4,4)+"   (h = 10⁻⁶, 오차 O(h))");
+    L.push("검산 (정의): [f(P + hu) − f(P)] / h = "+fmt(Math.round(Dq*1e4)/1e4,4)+"   (h = "+hTxt+", 오차 O(h))");
     if(n===0)L.push(red("∇f(P) = 0 (임계점): 모든 방향에서 D_u f = 0. ‘가장 가파른 방향’이 없습니다."));
     else L.push("최대 증가 방향 = ∇f 방향 (D_u f = |∇f|), 최대 감소 = −∇f 방향, ∇f ⟂ u 이면 D_u f = 0");
-    if(mismatch)L.push(red("주의: config의 fx, fy가 수치미분 ("+fmt(mismatch.fx,4)+", "+fmt(mismatch.fy,4)+")과 다릅니다."));
     st.innerHTML=L.join("\n");
   }
   draw();return draw;
@@ -803,10 +823,10 @@ mount("linear-map",function(el,cfg){
   var m=[1,0.5,0.3,1];
   if(Array.isArray(cfg.m)&&cfg.m.length===2&&Array.isArray(cfg.m[0])&&Array.isArray(cfg.m[1]))
     m=[num(cfg.m[0][0],1,-3,3),num(cfg.m[0][1],0,-3,3),num(cfg.m[1][0],0,-3,3),num(cfg.m[1][1],1,-3,3)];
-  else if(typeof cfg.preset==="string"&&cfg.preset in PRE)m=cfg.preset==="rotation"?rot(ang):PRE[cfg.preset].slice();
+  else if(typeof cfg.preset==="string"&&Object.prototype.hasOwnProperty.call(PRE,cfg.preset))m=cfg.preset==="rotation"?rot(ang):PRE[cfg.preset].slice();
   var cv=V6.canvas(el,400),ctx=cv.getContext("2d"),W=cv.width;
   var st=stateBox(el),ctl=controls(el);
-  var names=["p","q","r","s"],S=names.map(function(nm,i){return slider(ctl,nm+" ",-2,2,0.05,m[i],function(v){return fmt(v,3);},function(v){m[i]=v;draw();});});
+  var names=["p","q","r","s"],S=names.map(function(nm,i){return slider(ctl,nm+" ",-3,3,0.05,m[i],function(v){return fmt(v,3);},function(v){m[i]=v;draw();});});
   var pre=controls(el);
   function setM(v){m=v;S.forEach(function(s,i){s.set(m[i]);});draw();}
   button(pre,"항등",function(){setM([1,0,0,1]);});
@@ -896,9 +916,10 @@ mount("dot-product",function(el,cfg){
   V6.title(el,cfg.title||"내적 u·v = |u||v| cos θ, 정사영, 코시–슈바르츠 부등식");
   function polar(vec,len,ang,dl,da){
     if(Array.isArray(vec)&&vec.length===2){var x=num(vec[0],NaN),y=num(vec[1],NaN);
-      if(isFinite(x)&&isFinite(y)){var L=Math.min(Math.hypot(x,y),3);return [L,L>0?Math.atan2(y,x)/DEG:da];}}
+      if(isFinite(x)&&isFinite(y)){var L=Math.min(Math.hypot(x,y),3);if(Math.hypot(x,y)>3)clipped=true;return [L,L>0?Math.atan2(y,x)/DEG:da];}}
     return [num(len,dl,0,3),num(ang,da,-720,720)];
   }
+  var clipped=false;
   var U=polar(cfg.u,cfg.lenU,cfg.angU,2.5,15),V=polar(cfg.v,cfg.lenV,cfg.angV,2,65);
   U[1]=(U[1]%360+360)%360;V[1]=(V[1]%360+360)%360;
   var cv=V6.canvas(el,360),ctx=cv.getContext("2d"),W=cv.width;
@@ -959,6 +980,7 @@ mount("dot-product",function(el,cfg){
       L.push("직교 성분 v − proj_u v = ("+fmt(calc.snap(v[0]-pr[0],nv),3)+", "+fmt(calc.snap(v[1]-pr[1],nv),3)+"),  u와의 내적 = "+fmt(calc.snap(calc.dot(u,[v[0]-pr[0],v[1]-pr[1]]),nu*nv),3)+" (항상 0)");}
     else L.push(red("u = 0: proj_u v = (u·v/|u|²)u 는 |u|² = 0 으로 나누게 되어 정의되지 않습니다. θ도 정의되지 않음."));
     if(nu>0&&nv===0)L.push("v = 0: u·v = 0, proj_u v = 0, θ는 정의되지 않음");
+    if(clipped)L.push(red("config 벡터의 길이가 3을 넘어 길이 3으로 줄였습니다 (방향은 유지)."));
     st.innerHTML=L.join("\n");
   }
   /* dragging the tips */

@@ -96,6 +96,18 @@ for (const [nm, f, gx, gy, a, b] of [["x²+3y²", fA, (x, y) => 2 * x, (x, y) =>
   const f3 = (x, y) => x * x + y * y, g3 = C.grad(f3, 0, 0);
   check("방향도함수", "x²+y² @0: ∇f=0, 미분가능", [g3.fx, g3.fy, C.diffCheck(f3, 0, 0, 0, 0).ok], [0, 0, true]);
 }
+{ // review fixes: large curvature must NOT be flagged; real kinks must be
+  for (const [nm, f, a, b, smooth] of [["3000x² @0", (x, y) => 3000 * x * x, 0, 0, true], ["10⁴(x²+y²) @0", (x, y) => 1e4 * (x * x + y * y), 0, 0, true],
+    ["sin(50x)·y @(0.3,1)", (x, y) => Math.sin(50 * x) * y, 0.3, 1, true], ["10⁸+x @(1,1)", (x, y) => 1e8 + x, 1, 1, true],
+    ["|x|+y @0", (x, y) => Math.abs(x) + y, 0, 0, false], ["|x−1| @(1,0.5)", (x, y) => Math.abs(x - 1), 1, 0.5, false]]) {
+    const g = C.grad(f, a, b);
+    check("방향도함수", `${nm}: 미분가능 판정 = ${smooth ? "가능" : "불가"}`, !g.kink && C.diffCheck(f, a, b, g.fx, g.fy).ok, smooth);
+  }
+  const g = C.grad((x, y) => 1e8 + x, 1, 1);
+  check("방향도함수", "10⁸+x: f_x ≈ 1 (0으로 지워지지 않음)", Math.abs(g.fx - 1) < 1e-3, true);
+  const r = C.gd1((x) => 1 / (2 * Math.sqrt(x)), 4, 1, 10, 1e6, (x) => Math.sqrt(x));
+  check("gd 1D custom", "√x, η=4: 정의역 이탈 → undef 감지 (k=1)", [r.status, r.at], ["undef", 1]);
+}
 /* ---------- 3. quadratic form ---------- */
 function indepEig(a, b, c) { const t = a + c, d = Math.sqrt((a - c) ** 2 + 4 * b * b); return [(t - d) / 2, (t + d) / 2]; }
 const QF = [[2, 0.6, 1, "pd"], [-2, 0.5, -1, "nd"], [1, 2, 1, "indef"], [1, 1, 1, "psd"], [-1, 1, -1, "nsd"], [2, 0, -1, "indef"], [1.5, 0, 1.5, "pd"], [0, 0, 0, "zero"], [0.3, 0.3, 0.3, "psd"], [0.2, 0.4, 0.8, "psd"], [0, 1, 0, "indef"], [1e-3, 0, 2, "pd"]];

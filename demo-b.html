@@ -47,6 +47,8 @@ code{font-size:12px}
 <div class="v6-widget" data-widget="directional-derivative" data-config='{"f":"sqrt(x*x + y*y)","a":0,"b":0,"theta":0}'></div></div>
 <div class="demo" id="dd-kink2"><p>편도함수는 있지만 미분 불가능: f = sqrt(abs(x*y)), P = (0, 0) — f_x = f_y = 0 이지만 대각선 방향 한쪽 미분은 1/√2.</p>
 <div class="v6-widget" data-widget="directional-derivative" data-config='{"f":"sqrt(abs(x*y))","a":0,"b":0,"theta":45}'></div></div>
+<div class="demo" id="dd-mismatch"><p>config 편도함수에 오타 (fy = 3*y, 실제는 6*y): 경고만 내고 미분가능성 판정은 f 자체로.</p>
+<div class="v6-widget" data-widget="directional-derivative" data-config='{"f":"x*x + 3*y*y","fx":"2*x","fy":"3*y","a":1,"b":0.5,"theta":30}'></div></div>
 <div class="demo" id="dd-big"><p>|∇f| 가 큰 경우 (축소 표시): f = 5*x*y + y*y*y, P = (1, 1).</p>
 <div class="v6-widget" data-widget="directional-derivative" data-config='{"f":"5*x*y + y*y*y","a":1,"b":1,"theta":120}'></div></div>
 

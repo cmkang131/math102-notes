@@ -30,12 +30,12 @@ await send("Runtime.enable"); await send("Log.enable"); await send("Page.enable"
 await send("Emulation.setDeviceMetricsOverride", { width: 800, height: 1000, deviceScaleFactor: 1, mobile: false });
 let fails = 0;
 for (const pid of ids) {
-  const [name, extra] = pid.split("@");   // id@js  -> run js after load (interaction state)
+  const [name, extraRaw] = pid.split("@"); const extra = extraRaw && extraRaw.split("#")[0];   // id@js  -> run js after load (interaction state)
   logs.length = 0;
   await send("Page.navigate", { url: `${base}?only=${name}` });
   await sleep(900);
   await send("Runtime.evaluate", { expression: "document.fonts.ready.then(()=>1)", awaitPromise: true });
-  if (extra) { await send("Runtime.evaluate", { expression: decodeURIComponent(extra) }); await sleep(200); }
+  if (extra) { const ev = await send("Runtime.evaluate", { expression: decodeURIComponent(extra) }); if (ev.result.exceptionDetails) logs.push("interaction script error: " + ev.result.exceptionDetails.exception?.description); await sleep(200); }
   await sleep(250);
   const r = await send("Runtime.evaluate", { expression: "JSON.stringify((()=>{const d=[...document.querySelectorAll('.demo')].find(x=>x.style.display!=='none');const b=d.getBoundingClientRect();return {x:b.left-6,y:b.top+window.scrollY-6,w:b.width+12,h:b.height+12, err:[...d.querySelectorAll('.v6-state')].filter(s=>s.textContent.startsWith('오류')).map(s=>s.textContent)}})())", returnByValue: true });
   const box = JSON.parse(r.result.result.value);
