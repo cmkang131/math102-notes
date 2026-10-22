@@ -2046,652 +2046,806 @@ reg("path-limit",function(el,cfg){
   // 2. Directional derivative
   // ============================================================
 
-  X.reg("directional-derivative", function(el, cfg) {
-    cfg = cfg || {};
+  X.reg("directional-derivative", function (el, cfg) {
+  cfg = cfg || {};
+  window.V6.title(el, cfg.title || "방향도함수와 기울기 벡터");
 
-    window.V6.title(
-      el,
-      cfg.title || "방향미분: ∇f · u"
-    );
+  var INK = "#1a1a1a";
+  var RED = "#9e2b25";
+  var WHITE = "#ffffff";
+  var TAU = 2 * Math.PI;
+  var EPS = 1e-10;
 
-    var cv = X.mkCanvas(el, 375);
-    var ctx = cv.ctx;
-    var controls = controlsFor(el);
-    var box = X.stateBox(el);
+  var cv = X.mkCanvas(el, 375);
+  var ctx = cv.ctx;
+  var controls = controlsFor(el);
+  var box = X.stateBox(el);
 
-    var sources = [
-      "x^2+y^2",
-      "x*y",
-      "sin(x)+cos(y)",
-      "x^2+x*y+2*y^2"
-    ];
+  if (cv.canvas && cv.canvas.style) {
+    Object.assign(cv.canvas.style, {
+      display: "block",
+      width: "100%",
+      maxWidth: "760px",
+      height: "auto",
+      margin: "0 auto",
+      background: WHITE
+    });
+  }
 
-    var derivatives = [
-      function(x, y) { return [2 * x, 2 * y]; },
-      function(x, y) { return [y, x]; },
-      function(x, y) {
-        return [Math.cos(x), -Math.sin(y)];
-      },
-      function(x, y) {
-        return [2 * x + y, x + 4 * y];
-      }
-    ];
+  var sources = [
+    "x^2+y^2",
+    "x*y",
+    "sin(x)+cos(y)",
+    "x^2+x*y+2*y^2"
+  ];
 
-    var src = typeof cfg.f === "string"
-      ? cfg.f
-      : sources[3];
+  var presetGradients = [
+    function (x, y) { return [2*x, 2*y]; },
+    function (x, y) { return [y, x]; },
+    function (x, y) {
+      return [Math.cos(x), -Math.sin(y)];
+    },
+    function (x, y) { return [2*x+y, x+4*y]; }
+  ];
 
-    var index = sources.indexOf(src);
-    var options = sources.slice();
+  var src = typeof cfg.f === "string" ? cfg.f : sources[3];
+  var index = sources.indexOf(src);
 
-    if (
-      cfg.preset !== undefined &&
-      Number.isFinite(Number(cfg.preset))
-    ) {
-      index = Math.round(clamp(cfg.preset, 0, 3, 3));
-      src = sources[index];
+  if (cfg.preset !== undefined &&
+      Number.isFinite(Number(cfg.preset))) {
+    index = Math.round(clamp(cfg.preset, 0, 3, 3));
+    src = sources[index];
+  }
+
+  var options = sources.slice();
+
+  if (index < 0) {
+    options.push("사용자 지정: " + src.slice(0, 24));
+    index = 4;
+  }
+
+  var a = clamp(cfg.a, -2, 2, 1);
+  var b = clamp(cfg.b, -2, 2, 0.5);
+  var deg = 45;
+
+  X.select(controls, "함수 f", options, index, function (i) {
+    index = i;
+    refresh();
+  });
+
+  X.slider(controls, "점의 x좌표", -2, 2, 0.1, a, function (v) {
+    a = v;
+    refresh();
+  });
+
+  X.slider(controls, "점의 y좌표", -2, 2, 0.1, b, function (v) {
+    b = v;
+    refresh();
+  });
+
+  X.slider(controls, "방향 θ (°)", 0, 360, 1, deg, function (v) {
+    deg = v;
+    refresh();
+  });
+
+  function safeEval(f, x, y) {
+    try {
+      var v = f(x, y);
+      return Number.isFinite(v) ? {ok:true, value:v} :
+        {ok:false, error:"함수값이 유한하지 않습니다."};
+    } catch (e) {
+      return {ok:false, error:String(e && e.message || e)};
+    }
+  }
+
+  function evaluateGradient(f, x, y, h) {
+    var xp = safeEval(f, x+h, y);
+    var xm = safeEval(f, x-h, y);
+    var yp = safeEval(f, x, y+h);
+    var ym = safeEval(f, x, y-h);
+
+    if (!xp.ok || !xm.ok || !yp.ok || !ym.ok) {
+      return {
+        ok:false,
+        error:"편도함수 계산 중 함수 평가에 실패했습니다. " +
+          (!xp.ok ? "x+h: " + xp.error :
+           !xm.ok ? "x−h: " + xm.error :
+           !yp.ok ? "y+h: " + yp.error : "y−h: " + ym.error)
+      };
     }
 
-    if (index < 0) {
-      options.push("사용자 지정: " + src.slice(0, 30));
-      index = 4;
+    var gx = (xp.value-xm.value)/(2*h);
+    var gy = (yp.value-ym.value)/(2*h);
+
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
+      return {ok:false, error:"중앙차분 결과가 유한하지 않습니다."};
     }
 
-    var a = clamp(cfg.a, -2, 2, 1);
-    var b = clamp(cfg.b, -2, 2, 0.5);
-    var deg = 45;
+    return {ok:true, gradient:[gx, gy]};
+  }
 
-    X.select(
-      controls,
-      "f(x,y)",
-      options,
-      index,
-      function(i) {
-        index = i;
-        refresh();
-      }
-    );
+  function fmtVec(v, digits) {
+    return "(" + fmt(v[0], digits) + ", " + fmt(v[1], digits) + ")";
+  }
 
-    X.slider(
-      controls, "a", -2, 2, 0.1, a,
-      function(v) {
-        a = v;
-        refresh();
-      }
-    );
+  function angleDeg(rad) {
+    return ((rad*180/Math.PI)%360+360)%360;
+  }
 
-    X.slider(
-      controls, "b", -2, 2, 0.1, b,
-      function(v) {
-        b = v;
-        refresh();
-      }
-    );
+  function refresh() {
+    cv.clear();
 
-    X.slider(
-      controls, "θ (°)", 0, 360, 1, deg,
-      function(v) {
-        deg = v;
-        refresh();
-      }
-    );
+    ctx.save();
+    ctx.fillStyle = WHITE;
+    ctx.fillRect(0, 0, cv.canvas ? cv.canvas.width : 720,
+      cv.canvas ? cv.canvas.height : 375);
+    ctx.fillStyle = INK;
+    ctx.strokeStyle = INK;
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
 
-    function refresh() {
-      cv.clear();
+    var expr = index < 4 ? sources[index] : src;
+    var compiled;
 
-      var expr = index < 4 ? sources[index] : src;
-      var compiled;
+    try {
+      compiled = X.compile2(expr);
+    } catch (e) {
+      compiled = {err:String(e && e.message || e)};
+    }
 
-      try {
-        compiled = X.compile2(expr);
-      } catch (e) {
-        compiled = {err:String(e)};
-      }
-
-      if (
-        !compiled ||
-        compiled.err ||
-        typeof compiled.fn !== "function"
-      ) {
-        X.setLines(box, [
-          "함수식을 해석할 수 없습니다: " +
+    if (!compiled || compiled.err ||
+        typeof compiled.fn !== "function") {
+      X.setLines(box, [
+        "함수식을 해석할 수 없습니다: " +
           String(compiled && compiled.err || "입력 오류")
-        ]);
-        return;
+      ]);
+      ctx.restore();
+      return;
+    }
+
+    var f = compiled.fn;
+    var f0r = safeEval(f, a, b);
+
+    if (!f0r.ok) {
+      X.setLines(box, [
+        "기준점 p에서 함수를 평가할 수 없습니다.",
+        "p = " + fmtVec([a,b], 2),
+        f0r.error,
+        "함수식과 기준점을 확인하세요."
+      ]);
+      ctx.restore();
+      return;
+    }
+
+    var f0 = f0r.value;
+    var h1 = 1e-4;
+    var h2 = 5e-5;
+    var g1 = evaluateGradient(f, a, b, h1);
+    var g2 = evaluateGradient(f, a, b, h2);
+
+    if (!g1.ok || !g2.ok) {
+      X.setLines(box, [
+        "수치미분을 계산할 수 없습니다.",
+        !g1.ok ? g1.error : g2.error,
+        "기준점 또는 함수의 정의역을 확인하세요."
+      ]);
+      ctx.restore();
+      return;
+    }
+
+    var grad = g2.gradient;
+    var errorX = Math.abs(g2.gradient[0]-g1.gradient[0]);
+    var errorY = Math.abs(g2.gradient[1]-g1.gradient[1]);
+    var errorEst = Math.hypot(errorX, errorY);
+    var norm = Math.hypot(grad[0], grad[1]);
+    var theta = deg*Math.PI/180;
+    var u = [Math.cos(theta), Math.sin(theta)];
+    var du = grad[0]*u[0]+grad[1]*u[1];
+    var cosPhi = norm > EPS ? du/norm : null;
+
+    if (cosPhi !== null) {
+      cosPhi = Math.max(-1, Math.min(1, cosPhi));
+    }
+
+    var directionalStep = 1e-4;
+    var fp = safeEval(
+      f,
+      a+directionalStep*u[0],
+      b+directionalStep*u[1]
+    );
+
+    var differenceQuotient = null;
+    var quotientError = null;
+
+    if (fp.ok) {
+      differenceQuotient = (fp.value-f0)/directionalStep;
+      quotientError = Math.abs(differenceQuotient-du);
+      if (!Number.isFinite(differenceQuotient)) {
+        differenceQuotient = null;
+        quotientError = null;
       }
+    }
 
-      var f = compiled.fn;
-      var h = 1e-5;
-      var t = 1e-4;
+    var gradAngle = norm > EPS ? Math.atan2(grad[1], grad[0]) : null;
+    var maxDirection = gradAngle === null ? null :
+      [Math.cos(gradAngle), Math.sin(gradAngle)];
 
-      var f0 = f(a, b);
+    // Responsive drawing: two logical panels share a centered canvas.
+    var W = 720;
+    var H = 375;
+    var panelW = 350;
+    var panelH = 340;
+    var top = 25;
+    var leftX = 0;
+    var rightX = 365;
 
-      // Second-order central differences.
-      var fx = (f(a + h, b) - f(a - h, b)) / (2 * h);
-      var fy = (f(a, b + h) - f(a, b - h)) / (2 * h);
+    ctx.font = "12px sans-serif";
+    ctx.fillStyle = INK;
+    ctx.fillText("기울기와 방향", leftX+34, 16);
+    ctx.fillText("방향도함수와 각도", rightX+35, 16);
 
-      if (![f0, fx, fy].every(Number.isFinite)) {
-        X.setLines(box, [
-          "이 점에서 f 또는 중앙차분 값이 유한하지 않습니다."
-        ]);
-        return;
-      }
+    var left = X.frame(
+      ctx, panelW, panelH,
+      [-3, 3], [-3, 3],
+      {L:38, R:18, T:25, B:32, nx:4, ny:4}
+    );
 
-      var norm = Math.hypot(fx, fy);
-      var theta = deg * Math.PI / 180;
+    // Frame coordinates are panel-local. Translate only the drawing context.
+    ctx.save();
+    ctx.translate(leftX, top);
+    left = X.frame(
+      ctx, panelW, panelH,
+      [-3, 3], [-3, 3],
+      {L:38, R:18, T:25, B:32, nx:4, ny:4}
+    );
+    left.clip();
 
-      var u = [
-        Math.cos(theta),
-        Math.sin(theta)
-      ];
+    X.dot(ctx, left.px(a), left.py(b), 4, INK);
 
-      var du = fx * u[0] + fy * u[1];
-
-      var differenceQuotient = (
-        f(a + t * u[0], b + t * u[1]) - f0
-      ) / t;
-
-      var gradAngle = norm > 1e-8
-        ? Math.atan2(fy, fx)
-        : 0;
-
-      var maxTheta = (gradAngle + TAU) % TAU;
-
-      var zeros = [
-        (maxTheta + Math.PI / 2) % TAU,
-        (maxTheta + 3 * Math.PI / 2) % TAU
-      ];
-
-      // Left: vectors only. No contours.
-      ctx.save();
-      ctx.translate(0, 10);
-
-      var left = X.frame(
-        ctx, 360, 360,
-        [-4, 4], [-4, 4],
-        {L:33, R:27, T:30, B:30, nx:4, ny:4}
+    // Draw a normalized gradient arrow; label makes its display scaling explicit.
+    if (norm > EPS) {
+      X.arrow(
+        ctx,
+        left.px(a), left.py(b),
+        left.px(a+1.2*maxDirection[0]),
+        left.py(b+1.2*maxDirection[1]),
+        RED, 2.5, 8
       );
-
-      tag(ctx, "점 p에서의 방향 벡터", 36, 16);
-
-      left.clip();
-
-      X.dot(ctx, left.px(a), left.py(b), 4, INK);
-
-      var scale = norm > 1e-8
-        ? Math.min(1.8, norm * 0.5) / norm
-        : 0;
-
-      if (scale) {
-        // Gradient arrow is rescaled for display.
-        X.arrow(
-          ctx,
-          left.px(a), left.py(b),
-          left.px(a + fx * scale),
-          left.py(b + fy * scale),
-          RED, 2.4, 8
-        );
-
-        var tangent = [-fy / norm, fx / norm];
-
-        line(
-          ctx, left,
-          a - 6 * tangent[0],
-          b - 6 * tangent[1],
-          a + 6 * tangent[0],
-          b + 6 * tangent[1],
-          GREY, 1, [5, 4]
-        );
-      }
 
       X.arrow(
         ctx,
         left.px(a), left.py(b),
-        left.px(a + 1.35 * u[0]),
-        left.py(b + 1.35 * u[1]),
-        INK, 2.1, 8
+        left.px(a+1.2*u[0]),
+        left.py(b+1.2*u[1]),
+        INK, 2, 8
       );
 
-      ctx.restore();
-      ctx.translate(360, 0);
-
-      // Right: D_u f as a function of theta.
-      var m = Math.max(1, norm * 1.25);
-
-      var right = X.frame(
-        ctx, 360, 360,
-        [0, TAU], [-m, m],
-        {L:46, R:17, T:30, B:30, nx:4, ny:4}
+      var tangent = [-maxDirection[1], maxDirection[0]];
+      line(
+        ctx, left,
+        a-2.3*tangent[0], b-2.3*tangent[1],
+        a+2.3*tangent[0], b+2.3*tangent[1],
+        INK, 1, [4,4]
       );
-
-      tag(
+    } else {
+      X.arrow(
         ctx,
-        "Dᵤf(θ) = ∇f · (cosθ,sinθ) [θ: rad]",
-        49, 16
+        left.px(a), left.py(b),
+        left.px(a+1.2*u[0]),
+        left.py(b+1.2*u[1]),
+        INK, 2, 8
       );
-
-      X.curve(
-        ctx, right,
-        function(q) {
-          return fx * Math.cos(q) + fy * Math.sin(q);
-        },
-        [0, TAU], [-m, m],
-        INK, 1.7
-      );
-
-      right.clip();
-
-      if (norm > 1e-8) {
-        line(
-          ctx, right,
-          maxTheta, 0,
-          maxTheta, norm,
-          GREY, 1, [3, 4]
-        );
-
-        marker(
-          ctx,
-          right.px(maxTheta),
-          right.py(norm),
-          1, INK, 3
-        );
-
-        zeros.forEach(function(q) {
-          X.dot(ctx, right.px(q), right.py(0), 3, GREY);
-        });
-      }
-
-      X.dot(
-        ctx,
-        right.px(theta),
-        right.py(du),
-        5, RED
-      );
-
-      ctx.restore();
-      ctx.restore();
-
-      var analytic = index < 4
-        ? derivatives[index](a, b)
-        : null;
-
-      var lines = [
-        "p=(" + fmt(a, 2) + ", " + fmt(b, 2) +
-          "), ∇f≈" + txt2([fx, fy]) +
-          " (중앙차분 h=10⁻⁵)",
-
-        "‖∇f‖=" + fmt(norm, 6) +
-          ", θ=" + fmt(deg, 0) +
-          "°, Dᵤf=" + fmt(du, 6),
-
-        "∇f·u=" + fmt(du, 7) +
-          " / [f(p+tu)−f(p)]/t=" +
-          fmt(differenceQuotient, 7) +
-          " (t=10⁻⁴)",
-
-        norm > 1e-8
-          ? "Dᵤf = ‖∇f‖ cos(θ−θ∇), θ∇=" +
-            fmt(maxTheta * 180 / Math.PI, 2) +
-            "°; 직교 방향에서는 0입니다."
-          : "∇f≈0이면 모든 방향의 1차 방향미분이 0이고, " +
-            "유일한 접선 방향은 정해지지 않습니다.",
-
-        "빨간 화살표는 ∇f 방향(그림에서는 길이 조정), " +
-          "검은 화살표는 단위 방향 u입니다."
-      ];
-
-      if (analytic) {
-        var error = Math.max(
-          Math.abs(analytic[0] - fx),
-          Math.abs(analytic[1] - fy)
-        );
-
-        lines.splice(
-          1, 0,
-          "정확한 편도함수: " + txt2(analytic) +
-          " · 중앙차분 최대 오차=" + fmt(error, 9)
-        );
-      }
-
-      X.setLines(box, lines);
     }
 
-    refresh();
-  });
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(rightX, top);
+
+    var m = Math.max(1, norm*1.2);
+    var right = X.frame(
+      ctx, panelW, panelH,
+      [0, TAU], [-m, m],
+      {L:43, R:16, T:25, B:32, nx:4, ny:4}
+    );
+
+    right.clip();
+
+    X.curve(
+      ctx, right,
+      function (q) {
+        return grad[0]*Math.cos(q)+grad[1]*Math.sin(q);
+      },
+      [0, TAU], [-m, m],
+      INK, 1.8
+    );
+
+    line(ctx, right, 0, 0, TAU, 0, INK, 1, [3,4]);
+
+    if (norm > EPS) {
+      var maxAngle = (gradAngle+TAU)%TAU;
+      var minAngle = (maxAngle+Math.PI)%TAU;
+
+      line(ctx, right, maxAngle, 0, maxAngle, norm,
+        RED, 1.3, [4,3]);
+
+      X.dot(ctx, right.px(maxAngle), right.py(norm), 4, RED);
+      X.dot(ctx, right.px(minAngle), right.py(-norm), 4, RED);
+
+      var perpendicular1 = (maxAngle+Math.PI/2)%TAU;
+      var perpendicular2 = (maxAngle+3*Math.PI/2)%TAU;
+
+      X.dot(ctx, right.px(perpendicular1), right.py(0), 3, INK);
+      X.dot(ctx, right.px(perpendicular2), right.py(0), 3, INK);
+    }
+
+    X.dot(ctx, right.px(theta), right.py(du), 5, RED);
+
+    ctx.restore();
+    ctx.restore();
+
+    var analytic = index < 4 ? presetGradients[index](a,b) : null;
+    var analyticError = analytic ?
+      Math.hypot(analytic[0]-grad[0], analytic[1]-grad[1]) : null;
+
+    var lines = [
+      "p = " + fmtVec([a,b], 3) + ", f(p) = " + fmt(f0, 6),
+      "수치 기울기 ∇f ≈ " + fmtVec(grad, 7),
+      "‖∇f‖ ≈ " + fmt(norm, 7) +
+        " · 두 중앙차분 결과 차이 ≈ " + fmt(errorEst, 8),
+      "u = (cos θ, sin θ) = " + fmtVec(u, 5) +
+        " · θ = " + fmt(deg, 0) + "°",
+      "Dᵤf = ∇f · u ≈ " + fmt(du, 7)
+    ];
+
+    if (analytic) {
+      lines.push(
+        "예제의 정확한 기울기 = " + fmtVec(analytic, 7) +
+        " · 수치 오차 ≈ " + fmt(analyticError, 9)
+      );
+    }
+
+    if (norm > EPS) {
+      lines.push(
+        "최대 증가 방향 uₘₐₓ = ∇f/‖∇f‖ ≈ " +
+          fmtVec(maxDirection, 5)
+      );
+      lines.push(
+        "Dᵤf = ‖∇f‖ cos φ, cos φ ≈ " + fmt(cosPhi, 6) +
+          " · 최대값 = ‖∇f‖ ≈ " + fmt(norm, 7)
+      );
+      lines.push(
+        "최소 방향은 −uₘₐₓ이며, 최소 방향도함수는 −‖∇f‖입니다."
+      );
+    } else {
+      lines.push(
+        "‖∇f‖ ≈ 0: 1차 근사에서는 모든 단위 방향의 " +
+        "방향도함수가 약 0입니다."
+      );
+      lines.push(
+        "이 경우 최대 증가 방향은 기울기로부터 유일하게 정할 수 없습니다."
+      );
+    }
+
+    if (differenceQuotient !== null) {
+      lines.push(
+        "전진차분 검산: [f(p+tu)−f(p)]/t ≈ " +
+          fmt(differenceQuotient, 7) +
+          " · ∇f·u와의 차이 ≈ " + fmt(quotientError, 7)
+      );
+    } else {
+      lines.push(
+        "전진차분 검산은 p+tu에서 함수를 평가할 수 없어 생략했습니다."
+      );
+    }
+
+    lines.push(
+      "그림의 두 화살표는 방향 비교용으로 길이를 정규화했습니다. " +
+      "빨강은 기울기 방향, 검정은 선택한 단위 방향입니다."
+    );
+
+    lines.push(
+      "두 단계 중앙차분의 차이는 오차 추정 지표이며, " +
+      "함수의 매끄러움이나 수치 상쇄에 따라 실제 오차와 다를 수 있습니다."
+    );
+
+    X.setLines(box, lines);
+    ctx.restore();
+  }
+
+  refresh();
+});
 
   // ============================================================
   // 3. Quadratic forms and eigenvalues
   // ============================================================
 
-  X.reg("quadratic-form", function(el, cfg) {
-    cfg = cfg || {};
+  X.reg("quadratic-form", function (el, cfg) {
+  cfg = cfg || {};
+  window.V6.title(el, cfg.title || "이차형식과 고유값");
 
-    window.V6.title(
-      el,
-      cfg.title || "이차형식과 헤시안의 고유값"
-    );
+  var INK = "#1a1a1a";
+  var RED = "#9e2b25";
+  var WHITE = "#ffffff";
+  var TAU = 2*Math.PI;
+  var EPS = 1e-9;
 
-    var cv = X.mkCanvas(el, 375);
-    var ctx = cv.ctx;
-    var controls = controlsFor(el);
-    var box = X.stateBox(el);
+  var cv = X.mkCanvas(el, 375);
+  var ctx = cv.ctx;
+  var controls = controlsFor(el);
+  var box = X.stateBox(el);
 
-    var presets = [
-      [2, 0.5, 1],
-      [-2, -0.5, -1],
-      [1, 2, -1],
-      [1, 1, 1],
-      [1.5, 1.2, 1.5]
-    ];
+  if (cv.canvas && cv.canvas.style) {
+    Object.assign(cv.canvas.style, {
+      display: "block",
+      width: "100%",
+      maxWidth: "760px",
+      height: "auto",
+      margin: "0 auto",
+      background: WHITE
+    });
+  }
 
-    var a = clamp(cfg.a, -3, 3, 2);
-    var b = clamp(cfg.b, -3, 3, 1);
-    var c = clamp(cfg.c, -3, 3, 2);
-    var locked = false;
+  // Q(x,y) = ax² + 2bxy + cy²; A is symmetric.
+  var presets = [
+    [2, 0.5, 1],
+    [-2, -0.5, -1],
+    [1, 2, -1],
+    [1, 0, 0],
+    [0, 0, 0],
+    [1.5, 1.2, 1.5]
+  ];
 
-    X.select(
-      controls,
-      "예제",
-      [
-        "직접 조절",
-        "양의 정부호",
-        "음의 정부호",
-        "부정부호 (안장)",
-        "준정부호",
-        "회전된 주축"
-      ],
-      0,
-      function(i) {
-        if (!i) return;
+  var a = clamp(cfg.a, -3, 3, 2);
+  var b = clamp(cfg.b, -3, 3, 1);
+  var c = clamp(cfg.c, -3, 3, 2);
+  var locked = false;
 
-        locked = true;
+  var presetSelect = X.select(
+    controls,
+    "예제",
+    [
+      "직접 조절",
+      "양의 정부호",
+      "음의 정부호",
+      "부정부호",
+      "준정부호",
+      "영행렬",
+      "회전된 주축"
+    ],
+    0,
+    function (i) {
+      if (i === 0) return;
 
-        var p = presets[i - 1];
-        a = p[0];
-        b = p[1];
-        c = p[2];
+      var p = presets[i-1];
+      locked = true;
+      a = p[0];
+      b = p[1];
+      c = p[2];
 
-        sa.set(a);
-        sb.set(b);
-        sc.set(c);
+      sa.set(a);
+      sb.set(b);
+      sc.set(c);
 
-        locked = false;
-        refresh();
-      }
-    );
-
-    var sa = X.slider(
-      controls, "a", -3, 3, 0.1, a,
-      function(v) {
-        if (!locked) {
-          a = v;
-          refresh();
-        }
-      }
-    );
-
-    var sb = X.slider(
-      controls, "b", -3, 3, 0.1, b,
-      function(v) {
-        if (!locked) {
-          b = v;
-          refresh();
-        }
-      }
-    );
-
-    var sc = X.slider(
-      controls, "c", -3, 3, 0.1, c,
-      function(v) {
-        if (!locked) {
-          c = v;
-          refresh();
-        }
-      }
-    );
-
-    function refresh() {
-      cv.clear();
-
-      var mid = (a + c) / 2;
-      var delta = Math.hypot((a - c) / 2, b);
-
-      // Closed-form eigenvalues of a symmetric 2x2 matrix.
-      var lambda1 = mid - delta;
-      var lambda2 = mid + delta;
-
-      var determinant = a * c - b * b;
-      var trace = a + c;
-
-      var vx, vy;
-
-      // Eigenvector associated with lambda2.
-      if (delta < EPS) {
-        vx = 1;
-        vy = 0;
-      } else {
-        vx = b;
-        vy = lambda2 - a;
-
-        if (Math.hypot(vx, vy) < 1e-8) {
-          vx = lambda2 - c;
-          vy = b;
-        }
-
-        var length = Math.hypot(vx, vy);
-
-        vx /= length;
-        vy /= length;
-
-        // Deterministic sign convention.
-        if (
-          Math.abs(vx) >= Math.abs(vy)
-            ? vx < 0
-            : vy < 0
-        ) {
-          vx = -vx;
-          vy = -vy;
-        }
-      }
-
-      var vMax = [vx, vy];
-      var vMin = [-vy, vx];
-
-      var redMin = Math.abs(lambda1) > Math.abs(lambda2);
-      var redMax = !redMin;
-
-      ctx.save();
-      ctx.translate(0, 10);
-
-      var left = X.frame(
-        ctx, 360, 360,
-        [-1.5, 1.5], [-1.5, 1.5],
-        {L:33, R:27, T:30, B:30, nx:3, ny:3}
-      );
-
-      tag(ctx, "단위원과 고유벡터 방향", 36, 16);
-
-      left.clip();
-
-      var circle = [];
-
-      for (var j = 0; j <= 240; j++) {
-        var theta = TAU * j / 240;
-        circle.push([Math.cos(theta), Math.sin(theta)]);
-      }
-
-      poly(ctx, left, circle, GREY, 1.25);
-
-      [vMin, vMax].forEach(function(v, i) {
-        var color = (
-          i === 0 ? redMin : redMax
-        ) ? RED : INK;
-
-        line(
-          ctx, left,
-          -1.4 * v[0], -1.4 * v[1],
-           1.4 * v[0],  1.4 * v[1],
-          color, 1.2, [5, 3]
-        );
-
-        X.arrow(
-          ctx,
-          left.px(0), left.py(0),
-          left.px(v[0]), left.py(v[1]),
-          color, 2, 8
-        );
-      });
-
-      ctx.restore();
-      ctx.translate(360, 0);
-
-      var pad = Math.max(
-        0.4,
-        (lambda2 - lambda1) * 0.14
-      );
-
-      var right = X.frame(
-        ctx, 360, 360,
-        [0, TAU], [lambda1 - pad, lambda2 + pad],
-        {L:46, R:18, T:30, B:30, nx:4, ny:4}
-      );
-
-      tag(ctx, "Q(cosθ,sinθ)", 50, 16);
-
-      function Q(t) {
-        var x = Math.cos(t);
-        var y = Math.sin(t);
-        return a * x * x + 2 * b * x * y + c * y * y;
-      }
-
-      X.curve(
-        ctx, right,
-        Q,
-        [0, TAU], [lambda1 - pad, lambda2 + pad],
-        INK, 1.8
-      );
-
-      right.clip();
-
-      // Rayleigh quotient bounds.
-      line(
-        ctx, right, 0, lambda1, TAU, lambda1,
-        GREY, 1, [5, 3]
-      );
-
-      line(
-        ctx, right, 0, lambda2, TAU, lambda2,
-        GREY, 1, [5, 3]
-      );
-
-      if (lambda1 - pad <= 0 && 0 <= lambda2 + pad) {
-        line(
-          ctx, right, 0, 0, TAU, 0,
-          INK, 0.8, [2, 4]
-        );
-      }
-
-      var tMax = (
-        Math.atan2(vMax[1], vMax[0]) + TAU
-      ) % TAU;
-
-      var tMin = (
-        Math.atan2(vMin[1], vMin[0]) + TAU
-      ) % TAU;
-
-      [tMax, (tMax + Math.PI) % TAU].forEach(function(t) {
-        X.dot(
-          ctx,
-          right.px(t),
-          right.py(Q(t)),
-          3,
-          redMax ? RED : INK
-        );
-      });
-
-      [tMin, (tMin + Math.PI) % TAU].forEach(function(t) {
-        X.dot(
-          ctx,
-          right.px(t),
-          right.py(Q(t)),
-          3,
-          redMin ? RED : INK
-        );
-      });
-
-      ctx.restore();
-      ctx.restore();
-
-      // Independent sampled numerical verification.
-      var sampleMin = Infinity;
-      var sampleMax = -Infinity;
-
-      for (var k = 0; k < 4096; k++) {
-        var value = Q(TAU * k / 4096);
-
-        sampleMin = Math.min(sampleMin, value);
-        sampleMax = Math.max(sampleMax, value);
-      }
-
-      var verified =
-        Math.abs(sampleMin - lambda1) < 1e-3 &&
-        Math.abs(sampleMax - lambda2) < 1e-3;
-
-      var classification;
-
-      if (lambda1 > EPS) {
-        classification = "positive definite (양의 정부호)";
-      } else if (lambda2 < -EPS) {
-        classification = "negative definite (음의 정부호)";
-      } else if (lambda1 < -EPS && lambda2 > EPS) {
-        classification = "indefinite (부정부호)";
-      } else {
-        classification = "semidefinite (준정부호; 0 고유값 포함)";
-      }
-
-      X.setLines(box, [
-        "A=[[" + fmt(a, 2) + ", " + fmt(b, 2) +
-          "], [" + fmt(b, 2) + ", " + fmt(c, 2) +
-          "]], Q=zᵀAz",
-
-        "λ₁=" + fmt(lambda1, 6) +
-          " ≤ λ₂=" + fmt(lambda2, 6) +
-          ", det A=" + fmt(determinant, 5) +
-          ", tr A=" + fmt(trace, 5),
-
-        "단위 고유벡터 v₁=" + txt2(vMin) +
-          ", v₂=" + txt2(vMax) +
-          (
-            delta < EPS
-              ? " (중복 고유값: 축 선택은 임의)"
-              : ""
-          ),
-
-        "분류: " + classification,
-
-        "단위원 표본 min/max=" +
-          fmt(sampleMin, 6) + " / " +
-          fmt(sampleMax, 6) +
-          ", 고유값과 차이=" +
-          fmt(Math.abs(sampleMin - lambda1), 7) +
-          " / " +
-          fmt(Math.abs(sampleMax - lambda2), 7) +
-          (
-            verified
-              ? " · OK"
-              : " · 오차 허용값 초과"
-          ),
-
-        "임계점에서 H=2A인 경우, 두 λ>0이면 국소 최소, " +
-          "두 λ<0이면 국소 최대, 부호가 반대면 안장점입니다.",
-
-        "0 고유값이 있으면 헤시안의 2차 미분 판정법만으로는 " +
-          "결론을 낼 수 없습니다."
-      ]);
+      locked = false;
+      refresh();
     }
+  );
 
+  var sa = X.slider(controls, "a", -3, 3, 0.1, a, function (v) {
+    if (locked) return;
+    a = v;
     refresh();
   });
+
+  var sb = X.slider(controls, "b", -3, 3, 0.1, b, function (v) {
+    if (locked) return;
+    b = v;
+    refresh();
+  });
+
+  var sc = X.slider(controls, "c", -3, 3, 0.1, c, function (v) {
+    if (locked) return;
+    c = v;
+    refresh();
+  });
+
+  function fmtVec(v, digits) {
+    return "(" + fmt(v[0], digits) + ", " + fmt(v[1], digits) + ")";
+  }
+
+  function eigenData(a, b, c) {
+    var mid = (a+c)/2;
+    var delta = Math.hypot((a-c)/2, b);
+    var l1 = mid-delta;
+    var l2 = mid+delta;
+
+    var v2;
+
+    if (delta <= 1e-14) {
+      v2 = [1,0];
+    } else {
+      // Choose the numerically better of two equivalent eigenvector formulas.
+      var cand1 = [b, l2-a];
+      var cand2 = [l2-c, b];
+      var n1 = Math.hypot(cand1[0], cand1[1]);
+      var n2 = Math.hypot(cand2[0], cand2[1]);
+      v2 = n1 >= n2 ? cand1 : cand2;
+
+      var n = Math.hypot(v2[0], v2[1]);
+
+      if (!(n > 1e-14) || !Number.isFinite(n)) {
+        v2 = [1,0];
+      } else {
+        v2 = [v2[0]/n, v2[1]/n];
+      }
+
+      // Deterministic sign convention.
+      if (Math.abs(v2[0]) >= Math.abs(v2[1]) ?
+          v2[0] < 0 : v2[1] < 0) {
+        v2 = [-v2[0], -v2[1]];
+      }
+    }
+
+    var v1 = [-v2[1], v2[0]];
+
+    return {
+      l1:l1,
+      l2:l2,
+      v1:v1,
+      v2:v2,
+      delta:delta,
+      trace:a+c,
+      det:a*c-b*b
+    };
+  }
+
+  function classify(l1, l2, tolerance) {
+    var p = l1 > tolerance;
+    var n = l2 < -tolerance;
+    var zero1 = Math.abs(l1) <= tolerance;
+    var zero2 = Math.abs(l2) <= tolerance;
+
+    if (p && l2 > tolerance) {
+      return {
+        key:"positive-definite",
+        text:"양의 정부호",
+        detail:"모든 0이 아닌 z에서 Q(z) > 0입니다."
+      };
+    }
+
+    if (l1 < -tolerance && n) {
+      return {
+        key:"negative-definite",
+        text:"음의 정부호",
+        detail:"모든 0이 아닌 z에서 Q(z) < 0입니다."
+      };
+    }
+
+    if (l1 < -tolerance && l2 > tolerance) {
+      return {
+        key:"indefinite",
+        text:"부정부호",
+        detail:"Q(z)가 양수와 음수를 모두 취합니다."
+      };
+    }
+
+    if (l1 >= -tolerance && l2 >= -tolerance) {
+      if (zero1 && zero2) {
+        return {
+          key:"zero",
+          text:"영행렬",
+          detail:"모든 z에서 Q(z) = 0입니다."
+        };
+      }
+      return {
+        key:"positive-semidefinite",
+        text:"양의 준정부호",
+        detail:"모든 z에서 Q(z) ≥ 0이며, 영이 되는 비영 벡터가 존재합니다."
+      };
+    }
+
+    if (l1 <= tolerance && l2 <= tolerance) {
+      return {
+        key:"negative-semidefinite",
+        text:"음의 준정부호",
+        detail:"모든 z에서 Q(z) ≤ 0이며, 영이 되는 비영 벡터가 존재합니다."
+      };
+    }
+
+    return {
+      key:"indefinite",
+      text:"부정부호",
+      detail:"Q(z)가 양수와 음수를 모두 취합니다."
+    };
+  }
+
+  function refresh() {
+    cv.clear();
+
+    ctx.save();
+    ctx.fillStyle = WHITE;
+    ctx.fillRect(0, 0,
+      cv.canvas ? cv.canvas.width : 720,
+      cv.canvas ? cv.canvas.height : 375);
+    ctx.fillStyle = INK;
+    ctx.strokeStyle = INK;
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+
+    var e = eigenData(a,b,c);
+    var scale = Math.max(1, Math.abs(a), Math.abs(b), Math.abs(c),
+      Math.abs(e.l1), Math.abs(e.l2));
+    var tol = EPS*scale;
+    var cl = classify(e.l1,e.l2,tol);
+
+    function Q(x,y) {
+      return a*x*x+2*b*x*y+c*y*y;
+    }
+
+    function Qtheta(t) {
+      var x = Math.cos(t);
+      var y = Math.sin(t);
+      return Q(x,y);
+    }
+
+    // Two centered panels. Each panel uses its own local coordinate system.
+    var panelW = 350;
+    var panelH = 340;
+    var top = 25;
+
+    ctx.fillText("단위원과 고유벡터 주축", 34, 16);
+    ctx.fillText("단위원 위의 Q(z)", 395, 16);
+
+    ctx.save();
+    ctx.translate(0,top);
+
+    var left = X.frame(
+      ctx, panelW, panelH,
+      [-1.6,1.6], [-1.6,1.6],
+      {L:37,R:18,T:25,B:32,nx:4,ny:4}
+    );
+
+    left.clip();
+
+    var circle = [];
+    for (var j=0; j<=240; j++) {
+      var t = TAU*j/240;
+      circle.push([Math.cos(t),Math.sin(t)]);
+    }
+
+    poly(ctx,left,circle,INK,1.2);
+
+    // Each eigenvector is a principal axis, drawn as a full line.
+    [
+      {v:e.v1, lambda:e.l1, label:"v₁"},
+      {v:e.v2, lambda:e.l2, label:"v₂"}
+    ].forEach(function(item) {
+      var dominant = Math.abs(item.lambda) > tol;
+      var color = item.lambda < -tol ? RED : INK;
+      var v = item.v;
+
+      line(
+        ctx,left,
+        -1.42*v[0],-1.42*v[1],
+         1.42*v[0], 1.42*v[1],
+        color,1.4,[5,4]
+      );
+
+      X.arrow(
+        ctx,left,
+        left.px(0),left.py(0),
+        left.px(v[0]),left.py(v[1]),
+        color,2,8
+      );
+
+      X.dot(ctx,left.px(v[0]),left.py(v[1]),3,color);
+      X.dot(ctx,left.px(-v[0]),left.py(-v[1]),3,color);
+    });
+
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(365,top);
+
+    var pad = Math.max(0.35, (e.l2-e.l1)*0.16);
+    var ymin = Math.min(e.l1,0)-pad;
+    var ymax = Math.max(e.l2,0)+pad;
+
+    if (ymax-ymin < 0.7) {
+      ymin -= 0.35;
+      ymax += 0.35;
+    }
+
+    var right = X.frame(
+      ctx,panelW,panelH,
+      [0,TAU],[ymin,ymax],
+      {L:42,R:16,T:25,B:32,nx:4,ny:4}
+    );
+
+    right.clip();
+
+    X.curve(
+      ctx,right,Qtheta,
+      [0,TAU],[ymin,ymax],
+      INK,1.8
+    );
+
+    line(ctx,right,0,0,TAU,0,INK,1,[3,4]);
+    line(ctx,right,0,e.l1,TAU,e.l1,RED,1,[5,4]);
+    line(ctx,right,0,e.l2,TAU,e.l2,INK,1,[5,4]);
+
+    var t1 = (Math.atan2(e.v1[1],e.v1[0])+TAU)%TAU;
+    var t2 = (Math.atan2(e.v2[1],e.v2[0])+TAU)%TAU;
+
+    [t1,(t1+Math.PI)%TAU].forEach(function(t) {
+      X.dot(ctx,right.px(t),right.py(Qtheta(t)),4,RED);
+    });
+
+    [t2,(t2+Math.PI)%TAU].forEach(function(t) {
+      X.dot(ctx,right.px(t),right.py(Qtheta(t)),4,INK);
+    });
+
+    ctx.restore();
+    ctx.restore();
+
+    // Dense sampling is a visual/numerical cross-check, not the proof
+    // of the classification. Eigenvalues determine the exact classification.
+    var sampleMin = Infinity;
+    var sampleMax = -Infinity;
+    var sampleOK = true;
+
+    for (var k=0;k<4096;k++) {
+      var value = Qtheta(TAU*k/4096);
+
+      if (!Number.isFinite(value)) {
+        sampleOK = false;
+        break;
+      }
+
+      sampleMin = Math.min(sampleMin,value);
+      sampleMax = Math.max(sampleMax,value);
+    }
+
+    var minError = sampleOK ? Math.abs(sampleMin-e.l1) : NaN;
+    var maxError = sampleOK ? Math.abs(sampleMax-e.l2) : NaN;
+
+    X.setLines(box, [
+      "A = [[ " + fmt(a,3) + ", " + fmt(b,3) +
+        " ], [ " + fmt(b,3) + ", " + fmt(c,3) +
+        " ]] · Q(x,y) = ax² + 2bxy + cy²",
+      "고유값: λ₁ = " + fmt(e.l1,8) +
+        " ≤ λ₂ = " + fmt(e.l2,8),
+      "단위 고유벡터: v₁ = " + fmtVec(e.v1,6) +
+        ", v₂ = " + fmtVec(e.v2,6),
+      "det(A) = " + fmt(e.det,8) +
+        " · tr(A) = " + fmt(e.trace,8),
+      "분류: " + cl.text,
+      cl.detail,
+      "고유벡터 축에서 Q(v₁) = λ₁ = " + fmt(e.l1,8) +
+        ", Q(v₂) = λ₂ = " + fmt(e.l2,8),
+      sampleOK
+        ? "4096개 단위원 표본: min ≈ " + fmt(sampleMin,8) +
+          ", max ≈ " + fmt(sampleMax,8)
+        : "단위원 표본 계산에서 유한하지 않은 값이 발생했습니다.",
+      sampleOK
+        ? "표본과 고유값의 차이: " + fmt(minError,8) +
+          " / " + fmt(maxError,8) +
+          " · 표본은 검산용이며 분류의 근거는 고유값입니다."
+        : "표본 검산을 완료하지 못했습니다.",
+      "임계점의 Hessian이 H = 2A인 경우, 양의 정부호면 엄격한 국소 최소, " +
+        "음의 정부호면 엄격한 국소 최대, 부정부호면 안장점입니다.",
+      "준정부호 또는 영행렬이면 Hessian의 2차 판정만으로 " +
+        "일반적인 극값 결론을 내릴 수 없습니다."
+    ]);
+
+    ctx.restore();
+  }
+
+  refresh();
+});
 
   // ============================================================
   // 4. Linear map, determinant and signed area
