@@ -1,4 +1,4 @@
-# verify/a-numeric.mjs  (2026-10-22T05:54:27.985Z)
+# verify/a-numeric.mjs  (2026-10-22T05:56:58.852Z)
 # widget = assets/v6-extra-a.js 의 calc (vm 로드), indep = 이 스크립트에서 따로 계산
 
 결과    | 그룹        | 항목                                                   | widget                                   | indep                                    | 비고
@@ -102,7 +102,7 @@ PASS  | cobweb    | 로지스틱 r=3.9 고정점                                
 PASS  | cobweb    | 로지스틱 r=3.9 g'(x*) = 2 − r                            | -1.90000000000000                        | -1.90000000000000                        | 
 PASS  | cobweb    | 직접입력 1+1/x 고정점 = 황금비                                 | 1.61803398874989                         | 1.61803398874989                         | 
 PASS  | cobweb    | fixedPoints(3.2x(1−x), [0,1])                        | 0, 0.687500000000000                     | 0, 0.6875                                | 
-PASS  | cobweb    | 접하는 고정점 (r=1, x*=0, 부호변화 없음)                         | 5.55111512312578e-17                     | 0                                        | 
+PASS  | cobweb    | 접하는 고정점 (r=1, x*=0, 부호변화 없음)                         | 0                                        | 0                                        | 
 PASS  | cobweb    | tan x 극(π/2)을 가짜 고정점으로 잡지 않음                         | (없음)                                     | (없음)                                     | 
 PASS  | cobweb    | 로지스틱 r=2.8 장기 주기                                     | fixed p=1                                | p=1 (기대 1)                               | 
 PASS  | cobweb    | 로지스틱 r=3.2 장기 주기                                     | cycle p=2                                | p=2 (기대 2)                               | 

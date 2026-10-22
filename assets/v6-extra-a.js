@@ -331,11 +331,11 @@ var SERIES={
     lim:function(P){var a=Math.abs(P.r);return a<1?{v:0,t:"0"}:(P.r===1?{v:1,t:"1"}:null);},
     sum:function(P){return Math.abs(P.r)<1?{v:1/(1-P.r),t:"1/(1"+MINUS+"r)"}:null;},
     series:function(P){var a=Math.abs(P.r);
-      if(a<1)return "수렴. 기하급수에서 |r| = "+fmt(a)+" < 1 이면 합 = a/(1"+MINUS+"r) = 1/(1"+MINUS+fmt(P.r)+") = "+fmt(1/(1-P.r))+".";
+      if(a<1)return "수렴. 기하급수에서 |r| = "+fmt(a)+" < 1 이면 합 = a/(1"+MINUS+"r) = 1/(1"+MINUS+(P.r<0?"("+fmt(P.r)+")":fmt(P.r))+") = "+fmt(1/(1-P.r))+"  (첫째항 a = 1).";
       return "발산. |r| ≥ 1 이면 일반항 r^(n"+MINUS+"1) 이 0으로 가지 않는다 (일반항 판정)"+
         (P.r===1?". S_n = n → ∞.":P.r===-1?". S_n 이 1, 0, 1, 0, … 을 오가며 극한이 없다.":".");},
     seq:function(P){var a=Math.abs(P.r);
-      if(a<1)return "수열 rⁿ⁻¹ → 0 (|r| < 1). 그래서 급수 Σ rⁿ⁻¹ 도 수렴할 수 있다(실제로 합 "+fmt(1/(1-P.r))+").";
+      if(a<1)return "수열 rⁿ⁻¹ → 0 (|r| < 1). 급수 Σ rⁿ⁻¹ 도 수렴하지만(합 "+fmt(1/(1-P.r))+") 그 이유는 기하급수 공식이다 — a_n → 0 만으로 급수 수렴이 따라오지는 않는다(조화급수).";
       if(P.r===1)return "상수열 1 → 1. 급수로는 S_n = n → ∞ 발산.";
       if(P.r===-1)return "1, "+MINUS+"1, 1, … 진동 → 극한 없음 (발산).";
       return "|rⁿ⁻¹| → ∞ 이므로 수열이 발산한다.";}},
@@ -606,7 +606,7 @@ function newton1dWidget(el,cfg){
    cfg: {title?, pair:"circle-xy"|"circle-hyp", x0?, y0?, maxIter?:8, step?: 처음 보일 단계 수 (반복당 3단계)}
    ====================================================================== */
 var PAIRS={
-  "circle-xy":{label:"원 x²+y²=4 와 쌍곡선 xy=1",
+  "circle-xy":{label:"원 x²+y²=4 & xy=1",
     F:function(x,y){return [x*x+y*y-4,x*y-1];},J:function(x,y){return [2*x,2*y,y,x];},
     t1:"F₁ = x² + y² − 4",t2:"F₂ = xy − 1",Jt:"J = [[2x, 2y], [y, x]],  det J = 2x² − 2y²",
     sols:(function(){var a=Math.sqrt(2+Math.sqrt(3)),b=Math.sqrt(2-Math.sqrt(3));return [[a,b],[b,a],[-a,-b],[-b,-a]];})(),
@@ -614,7 +614,7 @@ var PAIRS={
             {c:2,pts:function(t){return [Math.exp(t),Math.exp(-t)];},t:[-2.5,2.5]},
             {c:2,pts:function(t){return [-Math.exp(t),-Math.exp(-t)];},t:[-2.5,2.5]}],
     lab1:[-1.42,1.42],lab2:[2.9,0.345],singular:"det J = 0 ⇔ |x| = |y| (두 직선 y = ±x 위)",x0:2,y0:1},
-  "circle-hyp":{label:"원 x²+y²=4 와 쌍곡선 x²−y²=1",
+  "circle-hyp":{label:"원 x²+y²=4 & x²−y²=1",
     F:function(x,y){return [x*x+y*y-4,x*x-y*y-1];},J:function(x,y){return [2*x,2*y,2*x,-2*y];},
     t1:"F₁ = x² + y² − 4",t2:"F₂ = x² − y² − 1",Jt:"J = [[2x, 2y], [2x, −2y]],  det J = −8xy",
     sols:(function(){var a=Math.sqrt(2.5),b=Math.sqrt(1.5);return [[a,b],[a,-b],[-a,b],[-a,-b]];})(),
@@ -756,7 +756,7 @@ var COB={
   "half":{label:"g(x) = x/2 + 1",g:function(x){return x/2+1;},dg:function(){return 0.5;},x:[-0.5,4],x0:0,
     fixed:function(){return [2];},note:"g'(x) = 1/2 (모든 x): 전체에서 축소사상. 오차가 정확히 매번 절반: x_n "+MINUS+" 2 = (x₀ "+MINUS+" 2)/2ⁿ."},
   "square":{label:"g(x) = x² (반발 고정점)",g:function(x){return x*x;},dg:function(x){return 2*x;},x:[-0.2,1.6],x0:0.9,
-    fixed:function(){return [0,1];},note:"x* = 0: g'(0) = 0 (아주 빠른 수렴). x* = 1: g'(1) = 2 > 1 반발 — x₀ < 1 이면 0으로, x₀ > 1 이면 ∞ 로 멀어진다."},
+    fixed:function(){return [0,1];},note:"x* = 0: g'(0) = 0 (아주 빠른 수렴). x* = 1: g'(1) = 2 > 1 반발 — |x₀| < 1 이면 0으로, |x₀| > 1 이면 ∞ 로 멀어진다."},
   "custom":{label:"직접 입력",x:[-2,2],x0:0.5}
 };
 function logisticText(r){
@@ -768,7 +768,7 @@ function logisticText(r){
   if(r<L.r2cycle)return "3 < r < 1+√6 ≈ 3.449: x* 는 반발 (|2 "+MINUS+" r| > 1), 대신 안정한 2-주기가 생긴다.";
   if(r<L.r4cycle)return "3.449 < r < 3.544: 안정한 4-주기 (주기배가).";
   if(r<L.rInf)return "3.544 < r < 3.5699: 8, 16, … 주기 (주기배가가 r ≈ 3.5699 에서 누적).";
-  if(r<4)return "r > 3.5699: 대부분의 r 에서 혼돈. 단 주기 창이 있다 (예: r ≥ 1+√8 ≈ 3.8284 부근의 3-주기 창).";
+  if(r<4)return "r > 3.5699: 혼돈 영역. 혼돈적인 r 이 많지만 안정 주기 궤도가 있는 ‘주기 창’이 촘촘히 끼어 있다 (예: r = 1+√8 ≈ 3.8284 에서 시작하는 3-주기 창).";
   if(r===4)return "r = 4: [0,1] 위에서 혼돈 (거의 모든 x₀ 에서 궤도가 주기적이지 않다).";
   return "r > 4: 궤도가 [0,1] 밖으로 나가 발산할 수 있다.";
 }
@@ -878,7 +878,7 @@ function cobwebWidget(el,cfg){
     state.innerHTML=lines.map(esc).join("\n")+
       "\n<b>장기 거동 (수치 관찰, 20000회 반복 후)</b>  "+esc(obs)+
       (P.hasR?"\n<b>r = "+esc(fmt(st.r,4))+"</b>  "+esc(logisticText(st.r)):"")+(P.note?"\n"+esc(P.note):"")+
-      "\n연결: 닫힌 구간 I 에서 g(I) ⊂ I 이고 |g'| ≤ k < 1 이면 평균값정리로 |g(x) "+MINUS+" g(y)| ≤ k|x "+MINUS+" y| — 축소사상이라 고정점이 하나뿐이고 반복이 그것으로 수렴한다. 음함수정리 증명의 축소사상 논법과 같은 구조.";
+      "\n연결: 닫힌 구간 I 에서 g(I) ⊂ I 이고 |g'| ≤ k < 1 이면 평균값정리로 |g(x) "+MINUS+" g(y)| ≤ k|x "+MINUS+" y| — 축소사상이라 I 안의 고정점이 하나뿐이고 I 의 어느 x₀ 에서 시작해도 반복이 그것으로 수렴한다 (축소사상으로 음함수정리를 증명할 때와 같은 구조).";
     bStep.disabled=st.n>=st.maxN||orbitEnded();bAll.disabled=bStep.disabled;bReset.disabled=st.n===0;
   }
   sync();recompute();draw();afterFonts(draw);

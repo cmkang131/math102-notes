@@ -205,7 +205,7 @@ function period(g, x0, T = 50000) { let x = x0; for (let i = 0; i < T; i++) x = 
     period((x) => 3.544 * x * (1 - x), 0.2, 400000) === 4 && period((x) => 3.5442 * x * (1 - x), 0.2, 400000) === 8);
   check("cobweb", "3-주기 창 시작 1+√8 = 3.828427", num(L.r3window), num(1 + Math.sqrt(8)), close(L.r3window, 3.8284271247461903, 1e-15));
   { const lt = W.logisticText; const t = [lt(0.5), lt(1), lt(2.8), lt(3), lt(3.2), lt(3.5), lt(3.56), lt(3.9), lt(4)];
-    const ok = t[0].includes("0 으로 수렴") && t[1].includes("판정 불가") && t[2].includes("안정") && t[3].includes("판정 불가") && t[4].includes("2-주기") && t[5].includes("4-주기") && t[6].includes("8, 16") && t[7].includes("혼돈") && t[8].includes("혼돈");
+    const ok = t[0].includes("0 으로 수렴") && t[1].includes("판정 불가") && t[2].includes("안정") && t[3].includes("판정 불가") && t[4].includes("2-주기") && t[5].includes("4-주기") && t[6].includes("8, 16") && t[7].includes("혼돈")&&t[7].includes("주기 창") && t[8].includes("혼돈");
     check("cobweb", "로지스틱 구간 문구 (0.5,1,2.8,3,3.2,3.5,3.56,3.9,4)", "문구 9개", "기대 키워드", ok); }
   check("cobweb", "classifyFixed: 0.5/1/1.0000001/2", ["attract", "neutral", "repel", "repel"].join(","), [0.5, 1, 1.0000001, -2].map((d) => C.classifyFixed(d, 1e-9)).join(","), [0.5, 1, 1.0000001, -2].map((d) => C.classifyFixed(d, 1e-9)).join(",") === "attract,neutral,repel,repel");
 }
