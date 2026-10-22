@@ -2840,7 +2840,7 @@ reg("path-limit",function(el,cfg){
       lineText("Me₂ = "+txt2(E2));
       heading("행렬식과 방향");
       lineText("det M = ad − bc = "+fmt(D,9));
-      lineText("방향: "+(singular?"퇴화 (수치적으로 특이)":D>0?"보존 (반시계)":"반전 (시계)"));
+      lineText("방향: "+(singular?"퇴화 (수치적으로 특이)":D>0?"방향 보존":"방향 반전"));
       lineText("판정 기준: |det M| < "+sci(DET_EPS));
       heading("넓이 검산");
       lineText("신발끈 부호 넓이 = "+fmt(signedArea,9));
