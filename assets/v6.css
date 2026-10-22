@@ -1,0 +1,49 @@
+/* v6 component library — style rules: white bg, ink #1a1a1a, red #9e2b25 accent only,
+   black lines/boxes, no odd colors, desktop-first, hand-made look */
+.v6-def,.v6-thm,.v6-example,.v6-mistake,.v6-keyformula,.v6-steps,.v6-selfcheck{
+  border:1.2px solid #1a1a1a;border-radius:3px;padding:10px 14px;margin:14px 0;background:#fff;
+  font-family:'Noto Sans KR',sans-serif;color:#1a1a1a}
+.v6-def::before{content:"정의";display:block;font-weight:700;font-size:11px;letter-spacing:.08em;margin-bottom:4px}
+.v6-thm::before{content:"정리";display:block;font-weight:700;font-size:11px;letter-spacing:.08em;margin-bottom:4px}
+.v6-example::before{content:"예제";display:block;font-weight:700;font-size:11px;letter-spacing:.08em;margin-bottom:4px}
+.v6-example[data-n]::before{content:"예제 " attr(data-n)}
+.v6-mistake{border-left:3.5px solid #9e2b25}
+.v6-mistake::before{content:"흔한 실수";display:block;font-weight:700;font-size:11px;letter-spacing:.08em;color:#9e2b25;margin-bottom:4px}
+.v6-keyformula{text-align:center;padding:14px}
+.v6-keyformula::before{content:"핵심 공식";display:block;font-weight:700;font-size:11px;letter-spacing:.08em;margin-bottom:6px;text-align:left}
+.v6-steps{counter-reset:v6step;padding-left:18px}
+.v6-steps .v6-step{counter-increment:v6step;margin:8px 0;padding-left:30px;position:relative}
+.v6-steps .v6-step::before{content:counter(v6step);position:absolute;left:0;top:1px;width:19px;height:19px;
+  border:1.2px solid #1a1a1a;border-radius:50%;font-size:11px;line-height:18px;text-align:center;font-weight:700}
+.v6-steps .v6-why{display:block;font-size:12.5px;color:#444;margin-top:2px}
+.v6-steps .v6-why::before{content:"왜: ";font-weight:700;color:#9e2b25}
+details.v6-selfcheck>summary{cursor:pointer;font-weight:700;list-style:none}
+details.v6-selfcheck>summary::before{content:"✓ self-check";display:block;font-size:11px;letter-spacing:.08em;color:#9e2b25;margin-bottom:2px}
+details.v6-selfcheck>summary::after{content:" (눌러서 답 보기)";font-weight:400;font-size:12px;color:#666}
+details.v6-selfcheck[open]>summary::after{content:""}
+details.v6-selfcheck>.v6-ans{border-top:1px dashed #1a1a1a;margin-top:8px;padding-top:8px}
+details.v6-collapse{border:1px dashed #1a1a1a;border-radius:3px;padding:8px 14px;margin:12px 0}
+details.v6-collapse>summary{cursor:pointer;font-weight:700;font-size:13px;list-style:none}
+details.v6-collapse>summary::before{content:"▸ ";color:#9e2b25}
+details.v6-collapse[open]>summary::before{content:"▾ "}
+.v6-hover{border-bottom:1.5px dotted #9e2b25;cursor:help;position:relative}
+.v6-hover>.v6-hover-pop{display:none;position:absolute;left:0;top:1.4em;z-index:40;background:#fff;
+  border:1.2px solid #1a1a1a;border-radius:3px;padding:8px 10px;font-size:12.5px;width:max-content;max-width:340px;
+  box-shadow:2px 2px 0 #1a1a1a}
+.v6-hover:hover>.v6-hover-pop,.v6-hover:focus>.v6-hover-pop{display:block}
+.v6-widget{border:1.2px solid #1a1a1a;border-radius:3px;margin:16px 0;padding:10px;background:#fff}
+.v6-widget>.v6-title{font-weight:700;font-size:11px;letter-spacing:.08em;margin-bottom:6px}
+.v6-widget canvas{display:block;width:100%;height:auto;background:#fff}
+.v6-controls{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12.5px;align-items:center}
+.v6-controls label{display:flex;align-items:center;gap:6px}
+.v6-controls input[type=range]{width:130px;accent-color:#1a1a1a}
+.v6-controls .v6-val{font-variant-numeric:tabular-nums;min-width:44px;display:inline-block}
+.v6-btn{border:1.2px solid #1a1a1a;background:#fff;border-radius:3px;padding:2px 12px;cursor:pointer;
+  font-family:inherit;font-size:12.5px}
+.v6-btn:active{transform:translate(1px,1px)}
+.v6-btn[disabled]{opacity:.35;cursor:default}
+.v6-stepbar{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12.5px}
+.v6-state{font-family:'Noto Sans KR',monospace;font-size:12.5px;margin-top:8px;white-space:pre-wrap}
+.v6-state table{border-collapse:collapse}
+.v6-state td,.v6-state th{border:1px solid #1a1a1a;padding:2px 8px;font-size:12.5px}
+@media (max-width:700px){.v6-controls input[type=range]{width:90px}}
