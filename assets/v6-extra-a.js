@@ -34,7 +34,11 @@ function fmt(v,sig){
     return neg(trimZeros(s.slice(0,k)))+"×10"+mapChars(String(parseInt(s.slice(k+1),10)),SUP);
   }
   if(a>=Math.pow(10,sig))return neg(String(Math.round(v)));
-  return neg(trimZeros(v.toPrecision(sig)));
+  var t=v.toPrecision(sig);
+  if(t.indexOf("e")>=0){var k2=t.indexOf("e"),ex=parseInt(t.slice(k2+1),10);
+    if(ex<6)return neg(String(Math.round(v)));
+    return neg(trimZeros(t.slice(0,k2)))+"×10"+mapChars(String(ex),SUP);}
+  return neg(trimZeros(t));
 }
 /* table: many digits so the doubling of correct digits is visible */
 function fmtLong(v){
@@ -118,10 +122,13 @@ calc.newton1d=function(f,df,x0,maxIt){
     if(!isFinite(x)||!isFinite(fx)){status="nan";break;}
     if(fx===0){status="root";break;}
     if(!isFinite(d)){status="nan";break;}
-    if(Math.abs(d)<FLAT){status=Math.abs(x)>1e6?"diverge":"flat";break;} // tiny slope far out = runaway, not a stall
+    if(d===0){status="flat";break;}
     var xn=x-fx/d;
     cur.next=xn;
-    if(!isFinite(xn)||Math.abs(xn)>BIG){status="diverge";break;}
+    if(!isFinite(xn)||Math.abs(xn)>BIG){
+      /* huge step: a near-horizontal tangent at a moderate x is a stall; far out it is a runaway */
+      if(Math.abs(d)<FLAT&&Math.abs(x)<1e6){status="flat";delete cur.next;}else status="diverge";
+      break;}
     it.push({x:xn,fx:f(xn)});
     if(Math.abs(xn-x)<=2e-16*Math.max(1,Math.abs(x))){status="conv";break;}
   }
@@ -208,6 +215,9 @@ calc.longRun=function(g,x0){
       return {kind:p===1?"fixed":"cycle",p:p,pts:c.slice(0,p),slow:slow||(p===1&&spreadA>1e-9)};
     }
   }
+  var dd=[];for(i=1;i<c.length;i++)dd.push(Math.abs(c[i]-c[i-1]));
+  var shrinking=spreadB<0.9*spreadA&&dd.every(function(v,j){return j===0||v<=dd[j-1]*(1+1e-9);});
+  if(shrinking)return {kind:"fixed",p:1,pts:[c[c.length-1]],slow:true};
   return {kind:"none",sample:c[0]};
 };
 calc.logistic={
@@ -383,7 +393,7 @@ function seriesWidget(el,cfg){
   if(!SERIES[preset]){msgs.push("알 수 없는 preset ‘"+preset+"’ → 기하급수로 표시합니다.");preset="geometric";}
   var NMAX=Math.round(clamp(num(cfg.Nmax,200),5,500));
   var st={preset:preset,N:Math.round(clamp(num(cfg.N,30),1,NMAX)),
-    r:clamp(num(cfg.r,0.5),-1.5,1.5),p:clamp(num(cfg.p,1.5),0.5,3),
+    r:Math.round(clamp(num(cfg.r,0.5),-1.5,1.5)*20)/20,p:Math.round(clamp(num(cfg.p,1.5),0.5,3)*20)/20,
     term:typeof cfg.term==="string"?cfg.term:"1/pow(n,2)",kind:null,termFn:null};
   st.kind=cfg.kind==="sequence"||cfg.kind==="series"?cfg.kind:(SERIES[preset].defKind||"series");
   var c=V6.canvas(el,470),ctx=c.getContext("2d");
@@ -475,7 +485,7 @@ function newton1dWidget(el,cfg){
   var msgs=[],preset=cfg.preset;
   if(preset===undefined)preset=(typeof cfg.f==="string")?"custom":"sqrt2";
   if(!NEWTON[preset]){msgs.push("알 수 없는 preset ‘"+preset+"’ → x² − 2 로 표시합니다.");preset="sqrt2";}
-  var st={preset:preset,step:0,maxIt:Math.round(clamp(num(cfg.maxIter,8),1,30)),f:cfg.f||"x*x-2",df:cfg.df||"",cust:null,x0:null,x:null,y:null};
+  var st={preset:preset,step:0,maxIt:Math.round(clamp(num(cfg.maxIter,8),1,30)),f:typeof cfg.f==="string"?cfg.f:"x*x-2",df:typeof cfg.df==="string"?cfg.df:"",cust:null,x0:null,x:null,y:null};
   function setPreset(p,first){
     st.preset=p;var P=NEWTON[p];
     var xr=(first&&Array.isArray(cfg.x)&&cfg.x.length===2)?[num(cfg.x[0],NaN),num(cfg.x[1],NaN)]:P.x.slice();
@@ -490,8 +500,8 @@ function newton1dWidget(el,cfg){
   var c=V6.canvas(el,360),ctx=c.getContext("2d");
   var ctl=mk("div","v6-controls");el.appendChild(ctl);
   addSelect(ctl,"예시",Object.keys(NEWTON).map(function(k){return [k,NEWTON[k].label];}),st.preset,function(v){
-    setPreset(v,false);x0S.set(st.x0);x0Range();sync();recompute();draw();});
-  var x0S=addSlider(ctl,"x₀",st.x[0],st.x[1],0.01,st.x0,function(v){return fmt(v,4);},function(v){st.x0=v;st.step=0;recompute();draw();});
+    stop();setPreset(v,false);x0S.set(st.x0);x0Range();sync();recompute();draw();});
+  var x0S=addSlider(ctl,"x₀",st.x[0],st.x[1],0.01,st.x0,function(v){return fmt(v,4);},function(v){stop();st.x0=v;st.step=0;recompute();draw();});
   function x0Range(){var inp=x0S.lab.querySelector("input");inp.min=st.x[0];inp.max=st.x[1];inp.step=(st.x[1]-st.x[0])>8?0.05:0.01;x0S.set(st.x0);}
   var bar=mk("div","v6-stepbar");el.appendChild(bar);
   var bReset=addBtn(bar,"⟲ 처음",function(){stop();st.step=0;draw();});
@@ -504,7 +514,7 @@ function newton1dWidget(el,cfg){
   function inBox(lbl,val,size){var l=mk("label",null,lbl+" "),i=mk("input");i.type="text";i.value=val;i.size=size;
     i.style.cssText="font:inherit;font-size:12.5px;border:1.2px solid #1a1a1a;border-radius:3px;padding:1px 6px";l.appendChild(i);cRow.appendChild(l);return i;}
   var fIn=inBox("f(x) =",st.f,22),dIn=inBox("f'(x) =",st.df,18);dIn.placeholder="비우면 수치미분";
-  addBtn(cRow,"적용",function(){st.f=fIn.value;st.df=dIn.value;st.step=0;recompute();draw();});
+  addBtn(cRow,"적용",function(){stop();st.f=fIn.value;st.df=dIn.value;st.step=0;recompute();draw();});
   var err=errBox(el),state=mk("div","v6-state");el.appendChild(state);
   var tbl=mk("div","v6-state");tbl.style.overflowX="auto";el.appendChild(tbl);
   var run=null,F=null,DF=null,root=null,rootNote="",custErr="";
@@ -571,8 +581,7 @@ function newton1dWidget(el,cfg){
       var last=it[it.length-1];
       if(run.status==="flat")end=Math.abs(last.fx)<1e-12?"멈춤: f(x)와 f'(x)가 모두 ≈ 0 — 중근 근처에 도달 (더 나눌 수 없음).":
         "멈춤: f'(x"+sub(it.length-1)+") ≈ 0 → 접선이 수평이라 x축과 만나지 않는다 (x_{n+1} 정의 안 됨). 다른 x₀ 를 고르세요.";
-      else if(run.status==="diverge")end=last.next!==undefined?"발산: |x| 가 10⁸ 을 넘어 중단 (x"+sub(it.length)+" = "+fmt(last.next,4)+").":
-        "발산: x"+sub(it.length-1)+" = "+fmt(last.x,4)+" 까지 멀어져 f' 이 사실상 0 — 더 진행할 수 없다.";
+      else if(run.status==="diverge")end="발산: 다음 값 x"+sub(it.length)+" = "+fmt(last.next,4)+" 의 크기가 10⁸ 을 넘어 중단.";
       else if(run.status==="nan")end="중단: f 또는 f' 이 정의되지 않는 점에 도달.";
       else if(run.status==="root")end="f(x"+sub(it.length-1)+") = 0 정확히 — 근에 도달.";
       else if(run.status==="conv")end="수렴: 더 반복해도 x 가 기계정밀도 안에서 변하지 않는다.";
@@ -594,7 +603,7 @@ function newton1dWidget(el,cfg){
         "</td><td style='text-align:right'>"+esc(isNaN(r2)?"—":fmt(r2,3))+"</td></tr>";
     }
     h+="</table>"+(root!==null?"r = "+(P.rootT&&P.rootT!==fmtLong(root)?esc(P.rootT)+" = ":"")+esc(fmtLong(root))+" "+esc(rootNote):esc(rootNote))+
-      (C!==null&&!P.multiple?"  ·  이 근에서 C = |f''(r)/(2f'(r))| ≈ "+esc(fmt(C,4))+(C<1e-12?" (f''(r) = 0 이라 수렴이 2차보다 빠르다: 이 경우 3차)":""):"")+
+      (C!==null&&!P.multiple?"  ·  이 근에서 C = |f''(r)/(2f'(r))| ≈ "+esc(fmt(C,4))+(C<1e-12&&(run.status==="conv"||run.status==="root")?" (f''(r) = 0 이라 수렴이 2차보다 빠르다: 이 경우 3차)":""):"")+
       (P.multiple?"  ·  e_n/e_{n−1} → 1/2 (1차 수렴)":"")+
       "\n(e_{n−1} ≥ 1 이면 e_n/e_{n−1}² 은 의미가 없어 ‘—’)";
     tbl.innerHTML=h;
@@ -635,9 +644,9 @@ function newton2dWidget(el,cfg){
   var c=V6.canvas(el,470),ctx=c.getContext("2d");c.style.cursor="crosshair";
   var ctl=mk("div","v6-controls");el.appendChild(ctl);
   addSelect(ctl,"곡선",Object.keys(PAIRS).map(function(k){return [k,PAIRS[k].label];}),st.pair,function(v){
-    st.pair=v;st.x0=PAIRS[v].x0;st.y0=PAIRS[v].y0;xS.set(st.x0);yS.set(st.y0);st.step=0;recompute();draw();});
-  var xS=addSlider(ctl,"x₀",-LIM,LIM,0.01,st.x0,function(v){return fmt(v,4);},function(v){st.x0=v;st.step=0;recompute();draw();});
-  var yS=addSlider(ctl,"y₀",-LIM,LIM,0.01,st.y0,function(v){return fmt(v,4);},function(v){st.y0=v;st.step=0;recompute();draw();});
+    stop();st.pair=v;st.x0=PAIRS[v].x0;st.y0=PAIRS[v].y0;xS.set(st.x0);yS.set(st.y0);st.step=0;recompute();draw();});
+  var xS=addSlider(ctl,"x₀",-LIM,LIM,0.01,st.x0,function(v){return fmt(v,4);},function(v){stop();st.x0=v;st.step=0;recompute();draw();});
+  var yS=addSlider(ctl,"y₀",-LIM,LIM,0.01,st.y0,function(v){return fmt(v,4);},function(v){stop();st.y0=v;st.step=0;recompute();draw();});
   ctl.appendChild(mk("span",null,"(그림을 클릭해도 시작점이 바뀝니다)"));
   var bar=mk("div","v6-stepbar");el.appendChild(bar);
   var bReset=addBtn(bar,"⟲ 처음",function(){stop();st.step=0;draw();});
@@ -732,7 +741,7 @@ function newton2dWidget(el,cfg){
       else if(run.status==="diverge")end="발산: 다음 점의 좌표가 10⁸ 을 넘어 중단.";
       else end="최대 반복 수에 도달.";
     }
-    if(cur.status==="ok"&&cur.cond<1e-3)end+=(end?" ":"")+"주의: det J 가 작아(두 직선이 거의 평행) 한 걸음 Δ 가 매우 크다.";
+    if(cur.status==="ok"&&(cur.cond<1e-2||Math.hypot(cur.dx,cur.dy)>xr[1]-xr[0]))end+=(end?" ":"")+"주의: det J 가 작아(두 직선이 거의 평행) 한 걸음 Δ 가 매우 크다.";
     state.innerHTML=esc(s)+(end?"\n<b>"+esc(end)+"</b>":"")+"\n"+esc(P.t1+",  "+P.t2+",  "+P.Jt)+".  ○ = 실제 해 4개.";
     var h="<table><tr><th>n</th><th>x_n</th><th>y_n</th><th>|F(x_n, y_n)|</th><th>det J</th><th>가장 가까운 해까지 거리</th></tr>";
     for(var i=0;i<=k;i++){var r=it[i],dist=Infinity;P.sols.forEach(function(sv){dist=Math.min(dist,Math.hypot(r.x-sv[0],r.y-sv[1]));});
@@ -779,7 +788,7 @@ function cobwebWidget(el,cfg){
   var msgs=[],preset=cfg.preset;
   if(preset===undefined)preset=(typeof cfg.g==="string")?"custom":"cos";
   if(!COB[preset]){msgs.push("알 수 없는 preset ‘"+preset+"’ → cos x 로 표시합니다.");preset="cos";}
-  var st={preset:preset,r:clamp(num(cfg.r,2.8),0,4),g:typeof cfg.g==="string"?cfg.g:"cos(x)",x:null,x0:0,n:0,
+  var st={preset:preset,r:Math.round(clamp(num(cfg.r,2.8),0,4)*100)/100,g:typeof cfg.g==="string"?cfg.g:"cos(x)",x:null,x0:0,n:0,
     maxN:Math.round(clamp(num(cfg.maxSteps,60),5,300))};
   function setPreset(p,first){
     st.preset=p;var P=COB[p];
@@ -874,7 +883,8 @@ function cobwebWidget(el,cfg){
     if(fps.length>4)lines.push("… 고정점이 더 있다 ("+fps.length+"개).");
     var obs;
     if(lr.kind==="diverge")obs="발산: "+lr.at+"번째 반복 근처에서 |x_n| 이 10⁶ 을 넘거나 정의되지 않는다.";
-    else if(lr.kind==="fixed")obs="고정점 "+fmt(lr.pts[0],7)+" 근처로 수렴"+(lr.slow?" — 단, 20000회 뒤에도 아직 조금씩 움직이는 매우 느린 수렴":"")+".";
+    else if(lr.kind==="fixed")obs=lr.slow?"매우 느린 수렴: 20000회 뒤에도 아직 움직이는 중 (현재 x ≈ "+fmt(lr.pts[0],7)+", 간격이 계속 줄어듦).":
+      "고정점 "+fmt(lr.pts[0],7)+" 근처로 수렴.";
     else if(lr.kind==="cycle")obs=(lr.slow?"아직 수렴 중(매우 느림) — 20000회 뒤의 모양은 주기 "+lr.p+" 처럼 보이지만 폭이 계속 줄고 있다: ":"주기 "+lr.p+" 궤도: ")+
       lr.pts.slice(0,8).map(function(v){return fmt(v,5);}).join(", ")+(lr.p>8?", …":"")+".";
     else obs="주기 64 이하의 주기가 보이지 않는다 — 혼돈적이거나 주기가 매우 길 수 있다 (수치 관찰일 뿐 증명은 아님).";

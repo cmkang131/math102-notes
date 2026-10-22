@@ -225,6 +225,24 @@ function period(g, x0, T = 50000) { let x = x0; for (let i = 0; i < T; i++) x = 
   check("fmt", "fmt(-0.5)", F(-0.5), "−0.5", F(-0.5) === "−0.5");
 }
 
+/* ---------------- 6. regression cases from the independent review ---------------- */
+{
+  const F = W.fmt;
+  check("review", "fmt(9999.7,4) / fmt(999.96,3) / fmt(999999.7)", [F(9999.7, 4), F(999.96, 3), F(999999.7)].join(" / "), "10000 / 1000 / 1×10⁶", F(9999.7, 4) === "10000" && F(999.96, 3) === "1000" && F(999999.7) === "1×10⁶");
+  const lr = C.longRun((x) => 0.9999 * x + 0.0001, 0.5);
+  check("review", "g=0.9999x+0.0001: ‘혼돈’ 아님 → 느린 수렴", lr.kind + " slow=" + lr.slow, "fixed slow=true", lr.kind === "fixed" && lr.slow === true);
+  const lr2 = C.longRun((x) => -0.9999 * x + 1.9999, 0.5);
+  check("review", "g=−0.9999x+…: 진동하는 느린 수렴도 ‘혼돈’ 아님", lr2.kind + " slow=" + lr2.slow, "slow=true", lr2.kind !== "none" && lr2.slow === true);
+  const lr3 = C.longRun((x) => 3.9 * x * (1 - x), 0.2);
+  check("review", "r=3.9 는 여전히 ‘주기 없음’", lr3.kind, "none", lr3.kind === "none");
+  const a = C.newton1d(Math.atan, (x) => 1 / (1 + x * x), 1.5, 8), last = a.it[a.it.length - 1];
+  check("review", "arctan 1.5: diverge, 마지막 next 정의됨(≈−2.4×10¹³)", a.status + " next=" + last.next, "diverge next≈-2.4e13", a.status === "diverge" && Math.abs(last.next + 2.38e13) < 0.05e13);
+  const b = C.newton1d((x) => 1e-13 * (x - 1), () => 1e-13, 0, 8);
+  check("review", "f=1e-13(x−1), x0=0: 기울기 작아도 x1=1 (flat 아님)", b.status + " x1=" + b.it[1]?.x, "x1=1", b.it.length > 1 && b.it[1].x === 1);
+  const c0 = C.newton1d((x) => x * x - 2, (x) => 2 * x, 1e-13, 8);
+  check("review", "x²−2, x0=1e-13: 수평 접선 멈춤 (flat)", c0.status, "flat", c0.status === "flat");
+}
+
 /* ---------------- output ---------------- */
 const pass = rows.filter((r) => r.ok).length;
 const pad = (s, n) => { s = String(s); return s.length >= n ? s.slice(0, n) : s + " ".repeat(n - s.length); };

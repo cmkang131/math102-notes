@@ -1,4 +1,4 @@
-# verify/a-numeric.mjs  (2026-10-22T05:56:58.852Z)
+# verify/a-numeric.mjs  (2026-10-22T06:02:28.489Z)
 # widget = assets/v6-extra-a.js 의 calc (vm 로드), indep = 이 스크립트에서 따로 계산
 
 결과    | 그룹        | 항목                                                   | widget                                   | indep                                    | 비고
@@ -141,5 +141,12 @@ PASS  | fmt       | fmt(265742.22,4)                                     | 26574
 PASS  | fmt       | fmt(3.306e35)                                        | 3.306×10³⁵                               | 3.306×10³⁵                               | 
 PASS  | fmt       | fmt(NaN), fmt(Infinity)                              | 정의 안 됨 / +∞ (발산)                         | 정의 안 됨 / +∞ (발산)                         | 
 PASS  | fmt       | fmt(-0.5)                                            | −0.5                                     | −0.5                                     | 
+PASS  | review    | fmt(9999.7,4) / fmt(999.96,3) / fmt(999999.7)        | 10000 / 1000 / 1×10⁶                     | 10000 / 1000 / 1×10⁶                     | 
+PASS  | review    | g=0.9999x+0.0001: ‘혼돈’ 아님 → 느린 수렴                    | fixed slow=true                          | fixed slow=true                          | 
+PASS  | review    | g=−0.9999x+…: 진동하는 느린 수렴도 ‘혼돈’ 아님                    | fixed slow=true                          | slow=true                                | 
+PASS  | review    | r=3.9 는 여전히 ‘주기 없음’                                  | none                                     | none                                     | 
+PASS  | review    | arctan 1.5: diverge, 마지막 next 정의됨(≈−2.4×10¹³)        | diverge next=-23830288973552.125         | diverge next≈-2.4e13                     | 
+PASS  | review    | f=1e-13(x−1), x0=0: 기울기 작아도 x1=1 (flat 아님)           | root x1=1                                | x1=1                                     | 
+PASS  | review    | x²−2, x0=1e-13: 수평 접선 멈춤 (flat)                      | flat                                     | flat                                     | 
 
-합계: 138 / 138 PASS
+합계: 145 / 145 PASS
