@@ -7,7 +7,8 @@
 "use strict";
 var INK="#1a1a1a", RED="#9e2b25", GRID="#e8e6e0";
 var widgets={};
-function register(name,fn){widgets[name]=fn;}
+var booted=false;
+function register(name,fn){widgets[name]=fn;if(booted)rescan();}
 function parse(el){try{return JSON.parse(el.getAttribute("data-config")||"{}");}catch(e){return null;}}
 function canvas(el,h){var c=document.createElement("canvas");c.width=720;c.height=h||380;
   c.style.width="100%";el.appendChild(c);return c;}
@@ -93,13 +94,13 @@ register("stepthrough",function(el,cfg){
 });
 function rescan(){
   document.querySelectorAll(".v6-widget[data-widget]:not([data-v6-mounted])").forEach(function(el){
-    el.setAttribute("data-v6-mounted","1");
-    var cfg=parse(el);if(!cfg)return;
     var fn=widgets[el.getAttribute("data-widget")];
-    if(fn)try{fn(el,cfg);}catch(e){el.insertAdjacentHTML("beforeend","<div style='color:#9e2b25;font-size:12px'>widget error</div>");}
+    if(!fn)return;
+    el.setAttribute("data-v6-mounted","1");
+    var cfg=parse(el)||{};
+    try{fn(el,cfg);}catch(e){el.insertAdjacentHTML("beforeend","<div style='color:#9e2b25;font-size:12px'>widget error</div>");}
   });
 }
-var booted=false;
 function boot(){if(booted)return;booted=true;rescan();}
 window.V6={register:register,rescan:rescan,makeFn:makeFn,axes:axes,canvas:canvas,title:title,INK:INK,RED:RED,GRID:GRID};
 document.addEventListener("DOMContentLoaded",boot);
