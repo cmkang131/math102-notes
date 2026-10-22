@@ -1293,955 +1293,362 @@ reg("path-limit",function(el,cfg){
   // 3. Newton's method for two nonlinear equations
   // ============================================================
 
+  
   X.reg("newton2d", function (el, cfg) {
     cfg = cfg || {};
-    window.V6.title(
-      el,
-      cfg.title || "2변수 Newton 방법과 도함수 행렬"
-    );
+    window.V6.title(el, cfg.title || "2변수 Newton 방법과 도함수 행렬");
   
     var cv = X.mkCanvas(el, 380), ctx = cv.ctx;
     var controls = X.h("div", "v6-controls");
     el.appendChild(controls);
-  
     var box = X.stateBox(el);
     var p = integer(cfg.preset, 0, 1, 0);
-  
     var starts = [[1.5, 0.8], [1.5, 1.5]];
-    var history = [], last = null, issue = "";
-    var solutions = [];
-    var view = null;
-  
-    var ROOT_TOL = 1e-9;
-    var STEP_DET_TOL = 1e-8;
-    var MAX_STEPS = 60;
+    var history = [], last = null, issue = "", solutions = [], view = null;
+    var ROOT_TOL = 1e-9, DET_TOL = 1e-8, MAX_STEPS = 60;
+    var INK = X.INK || "#1a1a1a", RED = X.RED || "#9e2b25";
   
     function model(x, y) {
       return p === 0
-        ? {
-            f: [x * x + y * y - 4, x * y - 1],
-            J: [[2 * x, 2 * y], [y, x]]
-          }
-        : {
-            f: [x * x - y - 1, x + y * y - 3],
-            J: [[2 * x, -1], [1, 2 * y]]
-          };
+        ? { f: [x*x+y*y-4, x*y-1], J: [[2*x,2*y],[y,x]] }
+        : { f: [x*x-y-1, x+y*y-3], J: [[2*x,-1],[1,2*y]] };
     }
-  
-    function determinant(m) {
-      return m.J[0][0] * m.J[1][1] -
-        m.J[0][1] * m.J[1][0];
+    function det(m) {
+      return m.J[0][0]*m.J[1][1]-m.J[0][1]*m.J[1][0];
     }
-  
-    function residual(z) {
-      var m = model(z[0], z[1]);
-      return Math.hypot(m.f[0], m.f[1]);
+    function norm(z) {
+      var f = model(z[0],z[1]).f;
+      return Math.hypot(f[0],f[1]);
     }
-  
-    // Returns a detailed result so a singular Jacobian and an
-    // unsafe/non-finite next iterate are not reported identically.
-    function calculate(z) {
-      var m = model(z[0], z[1]);
-      var det = determinant(m);
-  
-      if (!m.f.every(finite) || !finite(det)) {
-        return { ok: false, reason: "nonfinite" };
-      }
-  
-      if (Math.abs(det) < STEP_DET_TOL) {
-        return { ok: false, reason: "singular", det: det };
-      }
-  
-      // Cramer's rule for J * delta = -F.
-      var a = m.J[0][0], b = m.J[0][1];
-      var c = m.J[1][0], d = m.J[1][1];
-  
-      var dx = (-m.f[0] * d + b * m.f[1]) / det;
-      var dy = (-a * m.f[1] + m.f[0] * c) / det;
-  
-      var out = [z[0] + dx, z[1] + dy];
-  
-      if (!out.every(finite) ||
-          Math.max(Math.abs(out[0]), Math.abs(out[1])) >= 1e8) {
-        return { ok: false, reason: "unsafe" };
-      }
-  
-      return { ok: true, z: out, det: det };
+    function step(z) {
+      var m = model(z[0],z[1]), D = det(m);
+      if (!m.f.every(finite) || !finite(D)) return {ok:false, reason:"nonfinite"};
+      if (Math.abs(D) < DET_TOL) return {ok:false, reason:"singular", det:D};
+      var a=m.J[0][0], b=m.J[0][1], c=m.J[1][0], d=m.J[1][1];
+      var out = [
+        z[0]+(-m.f[0]*d+b*m.f[1])/D,
+        z[1]+(-a*m.f[1]+m.f[0]*c)/D
+      ];
+      if (!out.every(finite) || Math.max(Math.abs(out[0]),Math.abs(out[1]))>=1e8)
+        return {ok:false, reason:"unsafe"};
+      return {ok:true,z:out};
     }
-  
-    // Numerical convergence from ONE specified initial point.
-    // This does not establish that every real root has been found.
-    function solve80(initial) {
-      var z = initial.slice();
-  
-      for (var k = 0; k < 80; k++) {
-        var r = residual(z);
-  
+    function solve(initial) {
+      var z=initial.slice();
+      for (var i=0;i<80;i++) {
+        var r=norm(z);
         if (!finite(r)) return null;
-        if (r < ROOT_TOL) return z;
-  
-        var step = calculate(z);
-        if (!step.ok) return null;
-  
-        z = step.z;
+        if (r<ROOT_TOL) return z;
+        var s=step(z);
+        if (!s.ok) return null;
+        z=s.z;
       }
-  
-      return residual(z) < ROOT_TOL ? z : null;
+      return norm(z)<ROOT_TOL ? z : null;
     }
-  
-    // Report only distinct roots reached from this finite grid
-    // of initial guesses. This is a numerical search, not proof
-    // that all real intersections have been found.
     function gridRoots() {
-      var roots = [];
-      var nx = 20, ny = 20;
-      var xmin = -5, xmax = 5;
-      var ymin = -2.7, ymax = 2.7;
-  
-      for (var i = 0; i <= nx; i++) {
-        var x = xmin + (xmax - xmin) * i / nx;
-  
-        for (var j = 0; j <= ny; j++) {
-          var y = ymin + (ymax - ymin) * j / ny;
-          var z = solve80([x, y]);
-  
-          if (!z || !z.every(finite) ||
-              residual(z) >= ROOT_TOL) {
-            continue;
-          }
-  
-          var duplicate = roots.some(function (r) {
-            return Math.hypot(z[0] - r[0], z[1] - r[1]) < 1e-6;
-          });
-  
-          if (!duplicate) roots.push(z);
-        }
+      var roots=[], nx=20, ny=20;
+      for (var i=0;i<=nx;i++) for (var j=0;j<=ny;j++) {
+        var z=solve([-5+10*i/nx,-2.7+5.4*j/ny]);
+        if (!z || !z.every(finite) || norm(z)>=ROOT_TOL) continue;
+        if (!roots.some(function(q){return Math.hypot(z[0]-q[0],z[1]-q[1])<1e-6;}))
+          roots.push(z);
       }
+      return roots.sort(function(a,b){return a[0]-b[0]||a[1]-b[1];});
+    }
+    function updateRoots(){ solutions=gridRoots(); }
   
-      roots.sort(function (a, b) {
-        return a[0] - b[0] || a[1] - b[1];
+    X.select(controls,"연립방정식",["원 ∩ 쌍곡선","두 포물선"],p,function(v){
+      p=integer(v,0,1,0);
+      updateRoots();
+      xs.set(starts[p][0]); ys.set(starts[p][1]); reset();
+    });
+  
+    var xs=X.slider(controls,"x₀",-5,5,0.05,
+      clamp(cfg.x0,-5,5,starts[p]),function(v){
+        if(!ys)return;
+        history=[[clamp(v,-5,5,starts[p][0]),clamp(ys.get(),-2.7,2.7,starts[p][1])]];
+        last=null; issue=""; draw();
+      });
+    var ys=X.slider(controls,"y₀",-2.7,2.7,0.05,
+      clamp(cfg.y0,-2.7,2.7,starts[p]),function(v){
+        history=[[clamp(xs.get(),-5,5,starts[p][0]),clamp(v,-2.7,2.7,starts[p][1])]];
+        last=null; issue=""; draw();
       });
   
-      return roots;
-    }
-  
-    function updateRoots() {
-      solutions = gridRoots();
-    }
-  
-    X.select(
-      controls,
-      "연립방정식",
-      ["원 ∩ 쌍곡선", "두 포물선"],
-      p,
-      function (v) {
-        p = integer(v, 0, 1, 0);
-        updateRoots();
-        xs.set(starts[p][0]);
-        ys.set(starts[p][1]);
-        reset();
+    X.btn(controls,"다음 단계",function(){
+      if(history.length>=MAX_STEPS+1){issue="최대 "+MAX_STEPS+"회 반복까지 표시합니다.";draw();return;}
+      var z=history[history.length-1], m=model(z[0],z[1]);
+      if(Math.hypot(m.f[0],m.f[1])<ROOT_TOL){
+        issue="현재 점에서 ‖F(pₙ)‖₂ < 10⁻⁹입니다. 수치적 수렴 기준을 충족했습니다.";draw();return;
       }
-    );
-  
-    var xs = X.slider(
-      controls, "x₀", -5, 5, 0.05,
-      clamp(cfg.x0, -5, 5, starts[p][0]),
-      function (v) {
-        if (!ys) return;
-  
-        history = [[
-          clamp(v, -5, 5, starts[p][0]),
-          clamp(ys.get(), -2.7, 2.7, starts[p][1])
-        ]];
-  
-        last = null;
-        issue = "";
-        draw();
+      var s=step(z);
+      if(!s.ok){
+        issue=s.reason==="singular"
+          ? "|det J|="+show(Math.abs(s.det))+" < 10⁻⁸: 수치적 중단 기준에 걸려 단계를 계산하지 않았습니다."
+          : s.reason==="unsafe"
+            ? "다음 반복점이 유한하지 않거나 좌표 절댓값이 10⁸ 이상입니다."
+            : "함수값 또는 행렬식을 유한한 수로 계산할 수 없습니다.";
+        draw();return;
       }
-    );
-  
-    var ys = X.slider(
-      controls, "y₀", -2.7, 2.7, 0.05,
-      clamp(cfg.y0, -2.7, 2.7, starts[p][1]),
-      function (v) {
-        history = [[
-          clamp(xs.get(), -5, 5, starts[p][0]),
-          clamp(v, -2.7, 2.7, starts[p][1])
-        ]];
-  
-        last = null;
-        issue = "";
-        draw();
-      }
-    );
-  
-    X.btn(controls, "다음 단계", function () {
-      if (history.length >= MAX_STEPS + 1) {
-        issue = "최대 " + MAX_STEPS + "회 반복까지 표시합니다.";
-        draw();
-        return;
-      }
-  
-      var z = history[history.length - 1];
-      var m = model(z[0], z[1]);
-      var norm = Math.hypot(m.f[0], m.f[1]);
-  
-      if (norm < ROOT_TOL) {
-        issue = "현재 반복점에서 ‖F(pₙ)‖₂ < 10⁻⁹입니다. 수치적으로 수렴한 것으로 판정했습니다.";
-        draw();
-        return;
-      }
-  
-      var step = calculate(z);
-  
-      if (!step.ok) {
-        if (step.reason === "singular") {
-          issue =
-            "|det J(pₙ)| = " + show(Math.abs(step.det)) +
-            " < 10⁻⁸입니다. Jacobian이 수치적으로 특이하여 다음 Newton 단계를 계산하지 않았습니다.";
-        } else if (step.reason === "unsafe") {
-          issue =
-            "다음 반복값이 유한하지 않거나 좌표 절댓값이 10⁸ 이상입니다. 수치적 발산을 방지하기 위해 중단했습니다.";
-        } else {
-          issue =
-            "현재 점에서 함수값 또는 det J를 유한한 수로 계산할 수 없습니다. 다음 단계를 중단했습니다.";
-        }
-  
-        draw();
-        return;
-      }
-  
-      last = {
-        z: z.slice(),
-        m: m,
-        next: step.z.slice()
-      };
-  
-      history.push(step.z);
-      issue = "";
-  
-      var xr = view && view.xr;
-      var yr = view && view.yr;
-  
-      if (xr && yr &&
-          (step.z[0] < xr[0] || step.z[0] > xr[1] ||
-           step.z[1] < yr[0] || step.z[1] > yr[1])) {
-        issue =
-          "다음 반복점 (" + show(step.z[0]) + ", " +
-          show(step.z[1]) + ")이 현재 그래프 표시 범위를 벗어났습니다. 반복은 기록했으며, 점은 그래프 밖에 있어 보이지 않을 수 있습니다.";
-      }
-  
-      draw();
+      last={z:z.slice(),m:m,next:s.z.slice()};
+      history.push(s.z); issue=""; draw();
     });
-  
-    X.btn(controls, "되돌리기", function () {
-      if (history.length > 1) history.pop();
-  
-      last = null;
-  
-      if (history.length > 1) {
-        var prev = history[history.length - 2];
-        var curr = history[history.length - 1];
-  
-        last = {
-          z: prev.slice(),
-          m: model(prev[0], prev[1]),
-          next: curr.slice()
-        };
+    X.btn(controls,"되돌리기",function(){
+      if(history.length>1)history.pop();
+      last=null;
+      if(history.length>1){
+        var a=history[history.length-2],b=history[history.length-1];
+        last={z:a.slice(),m:model(a[0],a[1]),next:b.slice()};
       }
-  
-      issue = "";
-      draw();
+      issue="";draw();
     });
+    X.btn(controls,"처음으로",reset);
   
-    X.btn(controls, "처음으로", reset);
-  
-    function reset() {
-      history = [[
-        clamp(xs.get(), -5, 5, starts[p][0]),
-        clamp(ys.get(), -2.7, 2.7, starts[p][1])
-      ]];
-  
-      last = null;
-      issue = "";
-      draw();
+    function reset(){
+      history=[[clamp(xs.get(),-5,5,starts[p][0]),clamp(ys.get(),-2.7,2.7,starts[p][1])]];
+      last=null;issue="";draw();
     }
-  
-    // Clip the linearized equation ax + by + c = 0
-    // to the visible world-coordinate rectangle.
-    function linear(ctx, fr, m, z, k, xr, yr) {
-      var a = m.J[k][0], b = m.J[k][1];
-      var c = m.f[k] - a * z[0] - b * z[1];
-      var pts = [];
-  
-      if (Math.abs(b) > EPS) {
-        pts.push(
-          [xr[0], (-c - a * xr[0]) / b],
-          [xr[1], (-c - a * xr[1]) / b]
-        );
+    function lineInBox(fr,m,z,k,xr,yr){
+      var a=m.J[k][0],b=m.J[k][1],c=m.f[k]-a*z[0]-b*z[1],pts=[];
+      if(Math.abs(b)>EPS){
+        pts.push([xr[0],(-c-a*xr[0])/b],[xr[1],(-c-a*xr[1])/b]);
       }
-  
-      if (Math.abs(a) > EPS) {
-        pts.push(
-          [(-c - b * yr[0]) / a, yr[0]],
-          [(-c - b * yr[1]) / a, yr[1]]
-        );
+      if(Math.abs(a)>EPS){
+        pts.push([(-c-b*yr[0])/a,yr[0]],[(-c-b*yr[1])/a,yr[1]]);
       }
-  
-      pts = pts.filter(function (v) {
-        return v.every(finite) &&
-          v[0] >= xr[0] - EPS &&
-          v[0] <= xr[1] + EPS &&
-          v[1] >= yr[0] - EPS &&
-          v[1] <= yr[1] + EPS;
+      pts=pts.filter(function(q){
+        return q.every(finite)&&q[0]>=xr[0]-EPS&&q[0]<=xr[1]+EPS&&q[1]>=yr[0]-EPS&&q[1]<=yr[1]+EPS;
       });
-  
-      if (pts.length < 2) return;
-  
-      var best = [pts[0], pts[1]], dist = -1;
-  
-      for (var i = 0; i < pts.length; i++) {
-        for (var j = i + 1; j < pts.length; j++) {
-          var d = Math.hypot(
-            pts[i][0] - pts[j][0],
-            pts[i][1] - pts[j][1]
-          );
-  
-          if (d > dist) {
-            dist = d;
-            best = [pts[i], pts[j]];
-          }
-        }
+      var best=null,dist=-1;
+      for(var i=0;i<pts.length;i++)for(var j=i+1;j<pts.length;j++){
+        var d=Math.hypot(pts[i][0]-pts[j][0],pts[i][1]-pts[j][1]);
+        if(d>dist){dist=d;best=[pts[i],pts[j]];}
       }
-  
-      // Use the permitted ink color; distinguish the tangent
-      // lines with a dashed stroke instead of an extra gray color.
-      segment(
-        ctx, fr,
-        best[0][0], best[0][1],
-        best[1][0], best[1][1],
-        INK, 1.5, [5, 4]
-      );
+      if(best)segment(ctx,fr,best[0][0],best[0][1],best[1][0],best[1][1],INK,1.5,[5,4]);
     }
-  
-    // Analytic parametric curves; no contour approximation.
-    function parametric(ctx, fr, fn, a, b) {
-      fr.clip();
-      ctx.beginPath();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.8;
-      ctx.setLineDash([]);
-  
-      var active = false;
-  
-      for (var i = 0; i <= 260; i++) {
-        var xy = fn(a + (b - a) * i / 260);
-  
-        if (!xy.every(finite)) {
-          active = false;
-          continue;
+    function curve(fr,fn,a,b,n){
+      ctx.save();fr.clip();ctx.beginPath();ctx.strokeStyle=INK;ctx.lineWidth=1.8;
+      var active=false,prev=null;
+      for(var i=0;i<=n;i++){
+        var q=fn(a+(b-a)*i/n);
+        if(!q||!q.every(finite)||Math.abs(q[0])>1e7||Math.abs(q[1])>1e7){
+          active=false;prev=null;continue;
         }
-  
-        if (!active) {
-          ctx.moveTo(fr.px(xy[0]), fr.py(xy[1]));
-        } else {
-          ctx.lineTo(fr.px(xy[0]), fr.py(xy[1]));
-        }
-  
-        active = true;
+        var px=fr.px(q[0]),py=fr.py(q[1]);
+        if(active&&prev&&Math.hypot(px-prev[0],py-prev[1])<Math.max(cv.W,cv.H)*0.35)
+          ctx.lineTo(px,py);
+        else ctx.moveTo(px,py);
+        active=true;prev=[px,py];
       }
-  
-      ctx.stroke();
-      ctx.restore();
+      ctx.stroke();ctx.restore();
     }
-  
-    cv.c.addEventListener("click", function (ev) {
-      if (!view) return;
-  
-      var t = cv.pos(ev), fr = view.fr;
-  
-      if (t.x < fr.L ||
-          t.x > cv.W - fr.R ||
-          t.y < fr.T ||
-          t.y > cv.H - fr.B) {
-        return;
-      }
-  
-      var x = Math.round(
-        clamp(fr.ix(t.x), -5, 5, 0) * 20
-      ) / 20;
-  
-      var y = Math.round(
-        clamp(fr.iy(t.y), -2.7, 2.7, 0) * 20
-      ) / 20;
-  
-      xs.set(x);
-      ys.set(y);
-  
-      history = [[x, y]];
-      last = null;
-      issue = "";
-      draw();
+    cv.c.addEventListener("click",function(ev){
+      if(!view)return;
+      var t=cv.pos(ev),fr=view.fr;
+      if(t.x<fr.L||t.x>cv.W-fr.R||t.y<fr.T||t.y>cv.H-fr.B)return;
+      var x=Math.round(clamp(fr.ix(t.x),-5,5,0)*20)/20;
+      var y=Math.round(clamp(fr.iy(t.y),-2.7,2.7,0)*20)/20;
+      xs.set(x);ys.set(y);history=[[x,y]];last=null;issue="";draw();
     });
   
-    function draw() {
+    function draw(){
       cv.clear();
-  
-      // Equal world-unit scale on both axes.
-      var L = 49, R = 17, T = 20, B = 28;
-      var scale = 57;
-  
-      var xr = [
-        -(cv.W - L - R) / (2 * scale),
-         (cv.W - L - R) / (2 * scale)
-      ];
-  
-      var yr = [
-        -(cv.H - T - B) / (2 * scale),
-         (cv.H - T - B) / (2 * scale)
-      ];
-  
-      var fr = X.frame(ctx, cv.W, cv.H, xr, yr, {
-        L: L, R: R, T: T, B: B
-      });
-  
-      view = { fr: fr, xr: xr, yr: yr };
-  
-      if (p === 0) {
-        // Circle x² + y² = 4.
-        parametric(ctx, fr, function (t) {
-          return [2 * Math.cos(t), 2 * Math.sin(t)];
-        }, 0, 2 * Math.PI);
-  
-        // Hyperbola xy = 1, both branches.
-        parametric(ctx, fr, function (x) {
-          return [x, 1 / x];
-        }, 0.18, xr[1]);
-  
-        parametric(ctx, fr, function (x) {
-          return [x, 1 / x];
-        }, xr[0], -0.18);
-      } else {
-        // y = x² − 1.
-        parametric(ctx, fr, function (x) {
-          return [x, x * x - 1];
-        }, xr[0], xr[1]);
-  
-        // x = 3 − y².
-        parametric(ctx, fr, function (y) {
-          return [3 - y * y, y];
-        }, yr[0], yr[1]);
-      }
-  
-      // Linearized constraints at the most recently computed
-      // Newton step, not at the separately predicted solution.
-      if (last) {
-        for (var i = 0; i < 2; i++) {
-          linear(ctx, fr, last.m, last.z, i, xr, yr);
-        }
-      }
-  
-      // Roots found by the finite initial-point grid search.
-      solutions.forEach(function (z) {
-        point(ctx, fr, z[0], z[1], 4.2, INK, false);
-      });
-  
-      // User-driven Newton path.
-      for (var j = 1; j < history.length; j++) {
-        segment(
-          ctx, fr,
-          history[j - 1][0], history[j - 1][1],
-          history[j][0], history[j][1],
-          RED, 2.2
-        );
-      }
-  
-      history.forEach(function (z, i) {
-        point(
-          ctx, fr, z[0], z[1],
-          i === history.length - 1 ? 5 : 3,
-          RED
-        );
-      });
-  
-      X.label(
-        ctx,
-        p === 0
-          ? "F₁: x²+y²=4   F₂: xy=1"
-          : "F₁: y=x²−1   F₂: x=3−y²",
-        fr.L + 9, fr.T + 15, INK, "left", true
-      );
-  
-      var z = history[history.length - 1];
-      var m = model(z[0], z[1]);
-      var det = determinant(m);
-      var norm = Math.hypot(m.f[0], m.f[1]);
-  
-      var nearest = null, best = Infinity;
-  
-      solutions.forEach(function (sol) {
-        var distance = Math.hypot(
-          z[0] - sol[0],
-          z[1] - sol[1]
-        );
-  
-        if (distance < best) {
-          best = distance;
-          nearest = sol;
+      var z=history[history.length-1];
+      var all=history.concat(solutions);
+      if(last)all.push(last.next);
+      var xlo=-2.7,xhi=2.7,ylo=-2.7,yhi=2.7;
+      all.forEach(function(q){
+        if(q.every(finite)){
+          xlo=Math.min(xlo,q[0]-0.4);xhi=Math.max(xhi,q[0]+0.4);
+          ylo=Math.min(ylo,q[1]-0.4);yhi=Math.max(yhi,q[1]+0.4);
         }
       });
+      xlo=Math.max(-1e3,xlo);xhi=Math.min(1e3,xhi);
+      ylo=Math.max(-1e3,ylo);yhi=Math.min(1e3,yhi);
+      var L=49,R=17,T=23,B=28;
+      var scale=Math.min((cv.W-L-R)/(xhi-xlo),(cv.H-T-B)/(yhi-ylo),75);
+      var cx=(xlo+xhi)/2,cy=(ylo+yhi)/2;
+      var xr=[cx-(cv.W-L-R)/(2*scale),cx+(cv.W-L-R)/(2*scale)];
+      var yr=[cy-(cv.H-T-B)/(2*scale),cy+(cv.H-T-B)/(2*scale)];
+      var fr=X.frame(ctx,cv.W,cv.H,xr,yr,{L:L,R:R,T:T,B:B});
+      view={fr:fr};
+      if(p===0){
+        curve(fr,function(t){return[2*Math.cos(t),2*Math.sin(t)];},0,2*Math.PI,260);
+        curve(fr,function(x){return[x,1/x];},Math.max(0.18,xr[0]),xr[1],260);
+        curve(fr,function(x){return[x,1/x];},xr[0],Math.min(-0.18,xr[1]),260);
+      }else{
+        curve(fr,function(x){return[x,x*x-1];},xr[0],xr[1],260);
+        curve(fr,function(y){return[3-y*y,y];},yr[0],yr[1],260);
+      }
+      if(last)for(var k=0;k<2;k++)lineInBox(fr,last.m,last.z,k,xr,yr);
+      solutions.forEach(function(q){point(ctx,fr,q[0],q[1],4,INK,false);});
+      for(var j=1;j<history.length;j++)
+        segment(ctx,fr,history[j-1][0],history[j-1][1],history[j][0],history[j][1],RED,2.1);
+      history.forEach(function(q,i){point(ctx,fr,q[0],q[1],i===history.length-1?5:3,RED);});
+      X.label(ctx,p===0?"F₁: x²+y²=4   F₂: xy=1":"F₁: y=x²−1   F₂: x=3−y²",fr.L+8,fr.T+15,INK,"left",true);
   
-      // Independent convergence check from the current initial
-      // point. It does not modify or replace the manual history.
-      var predicted = solve80(history[0]);
-  
-      box.textContent = "";
-  
-      item(
-        box, "div",
-        "현재 수동 반복 pₙ = (" +
-        show(z[0]) + ", " + show(z[1]) +
-        "),  F(pₙ) = (" +
-        show(m.f[0]) + ", " + show(m.f[1]) + ")"
-      );
-  
-      item(
-        box, "div",
-        "‖F(pₙ)‖₂ = " + show(norm) +
-        ",  det J(pₙ) = " + show(det) +
-        (
-          !finite(det)
-            ? " — 유한한 행렬식을 계산할 수 없음"
-            : Math.abs(det) < STEP_DET_TOL
-              ? " — 수치적 특이: |det J| < 10⁻⁸"
-              : ""
-        )
-      );
-  
-      item(box, "div", "현재 점의 도함수 행렬 J(pₙ)");
-  
-      var table = X.h("table", "");
-  
-      m.J.forEach(function (row) {
-        var tr = X.h("tr", "");
-  
-        row.forEach(function (v) {
-          item(tr, "td", show(v));
-        });
-  
-        table.appendChild(tr);
-      });
-  
+      var m=model(z[0],z[1]),D=det(m),n=Math.hypot(m.f[0],m.f[1]);
+      var nearest=null,best=Infinity;
+      solutions.forEach(function(q){var d=Math.hypot(z[0]-q[0],z[1]-q[1]);if(d<best){best=d;nearest=q;}});
+      box.textContent="";
+      item(box,"div","현재 수동 반복 pₙ = ("+show(z[0])+", "+show(z[1])+"), F(pₙ) = ("+show(m.f[0])+", "+show(m.f[1])+")");
+      item(box,"div","‖F(pₙ)‖₂ = "+show(n)+", det J(pₙ) = "+show(D)+(Math.abs(D)<DET_TOL?" — |det J| < 10⁻⁸, 수치적 중단 기준":""));
+      item(box,"div","현재 Jacobian J(pₙ)");
+      var table=X.h("table","");
+      m.J.forEach(function(row){var tr=X.h("tr","");row.forEach(function(v){item(tr,"td",show(v));});table.appendChild(tr);});
       box.appendChild(table);
-  
-      item(
-        box, "div",
-        nearest
-          ? "격자 탐색에서 찾은 근 중 가장 가까운 근: (" +
-            nearest.map(function (v) {
-              return show(v, 9);
-            }).join(", ") +
-            "), 거리 = " + show(best)
-          : "격자 탐색에서 찾은 근이 없습니다. 현재 점이 해에서 멀다는 뜻일 수도 있고, 탐색에 실패했을 수도 있습니다."
-      );
-  
-      item(
-        box, "div",
-        "격자 탐색 결과: 초기점 " +
-        ((20 + 1) * (20 + 1)) +
-        "개에서 Newton 반복으로 찾은 서로 다른 근 " +
-        solutions.length + "개. 이 결과는 격자 탐색에 한정되며 모든 실근의 존재·완전성을 보장하지 않습니다."
-      );
-  
-      item(
-        box, "div",
-        "초기점에서 별도 계산한 결과: " +
-        (
-          predicted
-            ? "p₀ = (" +
-              predicted.map(function (v) {
-                return show(v, 8);
-              }).join(", ") +
-              "), ‖F(p₀ 수렴 결과)‖₂ = " +
-              show(residual(predicted)) +
-              " — 현재 수동 반복 경로와 별개입니다."
-            : "80회 이내 수렴하지 못했거나 특이 Jacobian / 안전 제한에 걸렸습니다. 현재 수동 반복 결과를 대신하지 않습니다."
-        )
-      );
-  
-      if (issue) {
-        item(box, "div", "계산 안내: " + issue);
-      }
-  
-      item(
-        box, "div",
-        "Newton 단계는 J(pₙ)Δ = −F(pₙ)를 풀어 pₙ₊₁ = pₙ + Δ로 계산합니다. 점을 클릭하거나 x₀, y₀를 바꾸면 새 초기점에서 수동 반복이 시작됩니다. 점선은 마지막으로 계산한 단계의 선형화입니다."
-      );
-  
-      item(
-        box, "div",
-        "det J = 0이면 Jacobian의 역행렬이 없어 표준 Newton 단계가 정의되지 않습니다. 이 위젯은 수치적 불안정을 피하기 위해 |det J| < 10⁻⁸에서도 단계를 중단합니다. det J ≠ 0은 해당 점에서의 국소적 가역성을 위한 조건이지, Newton 반복의 수렴이나 모든 실근 탐색을 보장하는 조건은 아닙니다."
-      );
+      item(box,"div",nearest?"격자 탐색에서 찾은 근 중 가장 가까운 근: ("+nearest.map(function(v){return show(v,9);}).join(", ")+"), 거리 = "+show(best):"격자 탐색에서 근을 검출하지 못했습니다. 근의 부재를 뜻하지는 않습니다.");
+      item(box,"div","초기점 441개를 이용한 탐색에서 검출한 서로 다른 근 "+solutions.length+"개. 이 유한 탐색은 모든 실근을 보장하지 않습니다.");
+      var predicted=solve(history[0]);
+      item(box,"div","초기점 기준 별도 자동 진단: "+(predicted?"("+predicted.map(function(v){return show(v,8);}).join(", ")+"), 잔차 "+show(norm(predicted)):"80회 내 수렴하지 못했거나 특이성·안전 제한에 걸렸습니다.")+". 수동 경로와 별개입니다.");
+      if(issue)item(box,"div","계산 안내: "+issue);
+      item(box,"div","Newton 단계는 J(pₙ)Δ = −F(pₙ), pₙ₊₁ = pₙ+Δ입니다. 클릭이나 슬라이더로 초기점을 바꿀 수 있습니다.");
+      item(box,"div","|det J| < 10⁻⁸은 이 위젯의 수치적 중단 기준입니다. 행렬식이 0이 아니어도 수렴이나 모든 실근의 검출이 보장되지는 않습니다.");
     }
-  
     updateRoots();
     reset();
   });
+  
 
   // ============================================================
   // 4. Cobweb and fixed-point iteration
   // ============================================================
 
+  
   X.reg("cobweb", function (el, cfg) {
-    cfg = cfg || {};
-    window.V6.title(el, cfg.title || "고정점 반복과 Cobweb 도표");
-  
-    var cv = X.mkCanvas(el, 375), ctx = cv.ctx;
-    var controls = X.h("div", "v6-controls");
-    el.appendChild(controls);
-  
-    var box = X.stateBox(el);
-    var p = integer(cfg.preset, 0, 3, 0);
-    var r = clamp(cfg.r, 0.5, 4, 3.2);
-    var hist = [], issue = "";
-    var startX = 1.2;
-  
-    var ranges = [[0, 1.5], [0, 4], [0, 1], [0, 2]];
-    var starts = [1.2, 0.4, 0.2, 1.1];
-    var INK = X.INK || "#1a1a1a";
-    var RED = X.RED || "#9e2b25";
-    var GRID = X.GRID || "#e8e6e0";
-  
-    function g(x) {
-      return p === 0 ? Math.cos(x)
-        : p === 1 ? x / 2 + 1
-        : p === 2 ? r * x * (1 - x)
-        : 2.5 - x * x;
-    }
-  
-    function derivative(x) {
-      var h = 1e-5 * Math.max(1, Math.abs(x));
-      return (g(x + h) - g(x - h)) / (2 * h);
-    }
-  
-    function h(x) {
-      return g(x) - x;
-    }
-  
-    // 탐색구간에서 부호 변화와 표본점의 근사 영점을 찾는다.
-    // 이 방법은 모든 실근의 존재나 완전한 검출을 보장하지 않는다.
-    function fixedPoints() {
-      var span = p === 2 ? [-2, 2]
-        : p === 3 ? [-3, 2]
-        : ranges[p];
-      var roots = [], steps = 1000;
-      var a = span[0], fa = h(a);
-  
-      function add(x) {
-        if (Number.isFinite(x) &&
-            !roots.some(function (u) { return Math.abs(u - x) < 1e-6; })) {
-          roots.push(x);
-        }
-      }
-  
-      if (Number.isFinite(fa) && Math.abs(fa) < 1e-10) add(a);
-  
-      for (var i = 1; i <= steps; i++) {
-        var b = span[0] + (span[1] - span[0]) * i / steps;
-        var fb = h(b);
-  
-        if (Number.isFinite(fb) && Math.abs(fb) < 1e-10) add(b);
-  
-        if (Number.isFinite(fa) && Number.isFinite(fb) && fa * fb < 0) {
-          var lo = a, hi = b, flo = fa;
-  
-          for (var j = 0; j < 80; j++) {
-            var mid = (lo + hi) / 2, fm = h(mid);
-            if (!Number.isFinite(fm)) break;
-            if (Math.abs(fm) < 1e-14 || hi - lo < 1e-13) {
-              lo = hi = mid;
-              break;
-            }
-            if (flo * fm <= 0) hi = mid;
-            else {
-              lo = mid;
-              flo = fm;
-            }
+    cfg=cfg||{};
+    window.V6.title(el,cfg.title||"고정점 반복과 Cobweb 도표");
+    var cv=X.mkCanvas(el,375),ctx=cv.ctx;
+    var controls=X.h("div","v6-controls");el.appendChild(controls);
+    var box=X.stateBox(el),p=integer(cfg.preset,0,3,0);
+    var r=clamp(cfg.r,0.5,4,3.2),hist=[],issue="";
+    var ranges=[[0,1.5],[0,4],[-0.1,1.1],[-3,2]];
+    var starts=[1.2,0.4,0.2,1.1],INK=X.INK||"#1a1a1a",RED=X.RED||"#9e2b25",GRID=X.GRID||"#e8e6e0";
+    function g(x){return p===0?Math.cos(x):p===1?x/2+1:p===2?r*x*(1-x):2.5-x*x;}
+    function h(x){return g(x)-x;}
+    function derivative(x){var e=1e-5*Math.max(1,Math.abs(x));return(g(x+e)-g(x-e))/(2*e);}
+    function search(){
+      var span=ranges[p],roots=[],N=1600,a=span[0],fa=h(a);
+      function add(x){if(Number.isFinite(x)&&!roots.some(function(q){return Math.abs(q-x)<1e-6;}))roots.push(x);}
+      if(Number.isFinite(fa)&&Math.abs(fa)<1e-10)add(a);
+      for(var i=1;i<=N;i++){
+        var b=span[0]+(span[1]-span[0])*i/N,fb=h(b);
+        if(Number.isFinite(fb)&&Math.abs(fb)<1e-10)add(b);
+        if(Number.isFinite(fa)&&Number.isFinite(fb)&&fa*fb<0){
+          var lo=a,hi=b,flo=fa;
+          for(var j=0;j<80;j++){
+            var mid=(lo+hi)/2,fm=h(mid);
+            if(!Number.isFinite(fm))break;
+            if(Math.abs(fm)<1e-14||hi-lo<1e-13){lo=hi=mid;break;}
+            if(flo*fm<=0)hi=mid;else{lo=mid;flo=fm;}
           }
-          add((lo + hi) / 2);
+          add((lo+hi)/2);
         }
-  
-        a = b;
-        fa = fb;
+        a=b;fa=fb;
       }
-  
-      return { roots: roots.sort(function (a, b) { return a - b; }), span: span };
+      return{roots:roots.sort(function(a,b){return a-b;}),span:span};
     }
-  
-    X.select(controls, "함수 g", [
-      "cos(x)", "x/2+1", "r·x(1−x)", "2.5−x²"
-    ], p, function (v) {
-      p = integer(v, 0, 3, 0);
-      reset(true);
+    X.select(controls,"함수 g",["cos(x)","x/2+1","r·x(1−x)","2.5−x²"],p,function(v){
+      p=integer(v,0,3,0);reset(true);
     });
-  
-    var xslider = X.slider(
-      controls, "x₀", 0, 1.5, 0.01,
-      clamp(cfg.x0, 0, 1.5, starts[p]),
-      function (v) {
-        startX = clamp(v, ranges[p][0], ranges[p][1], starts[p]);
-        hist = [startX];
-        issue = "";
-        draw();
-      }
-    );
-  
-    var rslider = X.slider(
-      controls, "r", 0.5, 4, 0.05, r,
-      function (v) {
-        r = clamp(v, 0.5, 4, 3.2);
-        startX = clamp(xslider.get(), ranges[p][0], ranges[p][1], starts[p]);
-        hist = [startX];
-        issue = "";
-        draw();
-      }
-    );
-  
-    X.btn(controls, "다음 단계", function () {
-      next(true);
+    var xslider=X.slider(controls,"x₀",ranges[p][0],ranges[p][1],0.01,
+      clamp(cfg.x0,ranges[p][0],ranges[p][1],starts[p]),function(v){
+        hist=[v];issue="";draw();
+      });
+    var rslider=X.slider(controls,"r",0.5,4,0.05,r,function(v){
+      r=clamp(v,0.5,4,3.2);hist=[xslider.get()];issue="";draw();
     });
-  
-    X.btn(controls, "10단계", function () {
-      for (var i = 0; i < 10; i++) {
-        if (!next(false)) break;
-      }
-      draw();
-    });
-  
-    X.btn(controls, "처음으로", function () {
-      reset(false);
-    });
-  
-    function reset(changed) {
-      var rg = ranges[p];
-      xslider.range(rg[0], rg[1], 0.01);
-      if (changed) xslider.set(starts[p]);
-      rslider.input.disabled = p !== 2;
-  
-      startX = clamp(xslider.get(), rg[0], rg[1], starts[p]);
-      hist = [startX];
-      issue = "";
-      draw();
+    X.btn(controls,"다음 단계",function(){next(true);});
+    X.btn(controls,"10단계",function(){for(var i=0;i<10;i++)if(!next(false))break;draw();});
+    X.btn(controls,"처음으로",function(){reset(false);});
+    function reset(changed){
+      var rg=ranges[p];
+      xslider.range(rg[0],rg[1],0.01);
+      if(changed)xslider.set(starts[p]);
+      rslider.input.disabled=p!==2;
+      hist=[clamp(xslider.get(),rg[0],rg[1],starts[p])];
+      issue="";draw();
     }
-  
-    function next(render) {
-      if (hist.length >= 101) {
-        issue = "수동 반복은 최대 100단계까지만 표시합니다.";
-        if (render !== false) draw();
-        return false;
-      }
-  
-      var y = g(hist[hist.length - 1]);
-      if (!Number.isFinite(y) || Math.abs(y) > 1e9) {
-        issue = "함숫값이 유효 범위를 벗어나 수동 반복을 중단했습니다.";
-        if (render !== false) draw();
-        return false;
-      }
-  
-      hist.push(y);
-      issue = "";
-      if (render !== false) draw();
+    function next(render){
+      if(hist.length>=101){issue="수동 반복은 최대 100단계입니다.";if(render)draw();return false;}
+      var y=g(hist[hist.length-1]);
+      if(!Number.isFinite(y)||Math.abs(y)>1e9){issue="함숫값이 유효 범위를 벗어나 반복을 중단했습니다.";if(render)draw();return false;}
+      hist.push(y);issue="";
+      if(render)draw();
       return true;
     }
-  
-    // 현재 수동 반복과 독립적인 x₀ 기준 자동 진단.
-    function analyzeStart(x0) {
-      var xs = [x0], x = x0;
-      var status = "미판정", detail = "";
-      var maxIter = 500, tol = 1e-8;
-      var cycle = 0;
-  
-      for (var i = 0; i < maxIter; i++) {
-        var y = g(x);
-  
-        if (!Number.isFinite(y) || Math.abs(y) > 1e9) {
-          status = "발산 또는 수치 한계";
-          detail = (i + 1) + "회째에 유효한 반복값을 얻지 못했습니다.";
-          return { status: status, detail: detail, xs: xs };
-        }
-  
+    function analyze(x0){
+      var xs=[x0],x=x0,tol=1e-8;
+      for(var i=0;i<500;i++){
+        var y=g(x);
+        if(!Number.isFinite(y)||Math.abs(y)>1e9)return{status:"발산 또는 수치 한계",detail:(i+1)+"회째에 유효한 반복값을 얻지 못했습니다."};
         xs.push(y);
-  
-        if (Math.abs(y - x) < tol * (1 + Math.abs(y))) {
-          status = "고정점 근사 도달";
-          detail = "자동 반복 " + (i + 1) + "회, x≈" + show(y, 9);
-          return { status: status, detail: detail, xs: xs };
-        }
-  
-        x = y;
-  
-        // 최근 반복값과 과거 값의 근접성으로 주기 후보만 검출한다.
-        // 유한 정밀도에서의 근접은 실제 주기 궤도의 증명이 아니다.
-        for (var q = 2; q <= 6 && q < xs.length - 1; q++) {
-          var old = xs[xs.length - 1 - q];
-          var scale = 1 + Math.abs(y);
-          if (Math.abs(y - old) < 1e-7 * scale) {
-            var consistent = true;
-            for (var z = 1; z <= q; z++) {
-              var u = xs.length - 1 - z;
-              var v = u - q;
-              if (v < 0 ||
-                  Math.abs(xs[u] - xs[v]) >
-                    1e-5 * (1 + Math.abs(xs[u]))) {
-                consistent = false;
-                break;
-              }
+        if(Math.abs(y-x)<tol*(1+Math.abs(y)))return{status:"고정점 근사 도달",detail:"자동 반복 "+(i+1)+"회, x≈"+show(y,9)};
+        x=y;
+        for(var q=2;q<=6&&q<xs.length-1;q++){
+          var old=xs[xs.length-1-q],scale=1+Math.abs(y);
+          if(Math.abs(y-old)<1e-7*scale){
+            var ok=true;
+            for(var z=1;z<=q;z++){
+              var u=xs.length-1-z,v=u-q;
+              if(v<0||Math.abs(xs[u]-xs[v])>1e-5*(1+Math.abs(xs[u]))){ok=false;break;}
             }
-            if (consistent) {
-              cycle = q;
-              break;
-            }
+            if(ok)return{status:"주기 후보",detail:"근사 주기 "+q+"을 검출했습니다. 실제 주기의 증명은 아닙니다."};
           }
         }
-  
-        if (cycle) {
-          status = "주기 후보";
-          detail = "근사 주기 " + cycle +
-            "을 검출했습니다. 유한 반복으로 확정할 수는 없습니다.";
-          return { status: status, detail: detail, xs: xs };
-        }
       }
-  
-      status = "수렴 여부 미판정";
-      detail = maxIter + "회 자동 반복 내에서 판정 기준을 충족하지 못했습니다.";
-      return { status: status, detail: detail, xs: xs };
+      return{status:"수렴 여부 미판정",detail:"500회 안에 판정 기준을 충족하지 못했습니다."};
     }
-  
-    function draw() {
+    function draw(){
       cv.clear();
-  
-      var rg = ranges[p];
-      var fr = X.frame(ctx, cv.W, cv.H, rg, rg, {
-        L: 49, R: 18, T: 25, B: 32
-      });
-  
-      X.curve(ctx, fr, g, rg, rg, INK, 2.1);
-      X.curve(ctx, fr, function (x) { return x; },
-        rg, rg, GRID, 1.5, [5, 4]);
-  
-      var search = fixedPoints();
-      var roots = search.roots;
-  
-      roots.forEach(function (x) {
-        if (x >= rg[0] && x <= rg[1]) {
-          point(ctx, fr, x, x, 4.8, INK, false);
-        }
-      });
-  
-      // 화면에 들어오는 구간만 그려서 범위 이탈 시 잘못된 선을 방지한다.
-      for (var i = 0; i < hist.length - 1; i++) {
-        var a = hist[i], b = hist[i + 1];
-        if (a < rg[0] || a > rg[1] || b < rg[0] || b > rg[1]) continue;
-        segment(ctx, fr, a, a, a, b, RED, 1.8);
-        segment(ctx, fr, a, b, b, b, RED, 1.8);
+      var rg=ranges[p],found=search(),roots=found.roots;
+      var all=hist.concat(roots),lo=rg[0],hi=rg[1];
+      all.forEach(function(x){if(Number.isFinite(x)){lo=Math.min(lo,x-0.1);hi=Math.max(hi,x+0.1);}});
+      // 탐색구간을 유지하되 반복값과 검출된 근까지 확장한다.
+      var fr=X.frame(ctx,cv.W,cv.H,[lo,hi],[lo,hi],{L:49,R:18,T:25,B:32});
+      X.curve(ctx,fr,g,[lo,hi],[lo,hi],INK,2.1);
+      X.curve(ctx,fr,function(x){return x;},[lo,hi],[lo,hi],GRID,1.5,[5,4]);
+      roots.forEach(function(x){point(ctx,fr,x,x,4.5,INK,false);});
+      for(var i=0;i<hist.length-1;i++){
+        var a=hist[i],b=hist[i+1];
+        if(a<lo||a>hi||b<lo||b>hi)continue;
+        segment(ctx,fr,a,a,a,b,RED,1.8);
+        segment(ctx,fr,a,b,b,b,RED,1.8);
       }
-  
-      var current = hist[hist.length - 1];
-      if (current >= rg[0] && current <= rg[1]) {
-        point(ctx, fr, current, current, 4.5, RED);
-      }
-  
-      X.label(ctx, "y=g(x)", fr.L + 8, fr.T + 15, INK, "left", true);
-      X.label(ctx, "y=x", fr.L + 8, fr.T + 33, GRID, "left", true);
-  
-      var state = [
-        "수동 반복: xₙ₊₁=g(xₙ), 단계 " + (hist.length - 1),
-        "현재 x≈" + show(current, 9),
-        "최근 반복값: " + hist.slice(-5).map(function (v) {
-          return show(v);
-        }).join(" → ")
+      var cur=hist[hist.length-1];
+      if(cur>=lo&&cur<=hi)point(ctx,fr,cur,cur,4.5,RED);
+      X.label(ctx,"y=g(x)",fr.L+8,fr.T+15,INK,"left",true);
+      X.label(ctx,"y=x",fr.L+8,fr.T+33,GRID,"left",true);
+      var out=[
+        "수동 반복: xₙ₊₁=g(xₙ), 단계 "+(hist.length-1),
+        "현재 x≈"+show(cur,9),
+        "최근 반복값: "+hist.slice(-5).map(function(v){return show(v);}).join(" → "),
+        "고정점 탐색구간: ["+show(rg[0])+","+show(rg[1])+"], 1600개 구간 표본"
       ];
-  
-      if (current < rg[0] || current > rg[1]) {
-        state.push("현재 반복값이 그래프의 표시 범위 밖입니다. 계산값은 유지됩니다.");
-      }
-  
-      state.push(
-        "고정점 탐색구간: [" + show(search.span[0]) +
-        ", " + show(search.span[1]) + "], 1000개 구간 표본"
-      );
-  
-      if (!roots.length) {
-        state.push(
-          "이 탐색에서 고정점을 검출하지 못했습니다. 고정점이 없다는 증명은 아니며, " +
-          "표본점 사이의 짝수 중복도 근 등은 놓칠 수 있습니다."
-        );
-      } else {
-        state.push(
-          "검출한 고정점(" + roots.length + "개): " +
-          roots.map(function (x) { return show(x, 8); }).join(", ") +
-          ". 탐색구간의 모든 근을 찾았다는 보장은 없습니다."
-        );
-      }
-  
-      roots.forEach(function (x) {
-        var slope = Math.abs(derivative(x));
-        var verdict = slope < 1 - 1e-5
-          ? "국소적으로 끌림"
-          : slope > 1 + 1e-5
-            ? "국소적으로 밀림"
-            : "경계 또는 수치상 판정 불확실";
-  
-        state.push(
-          "x*≈" + show(x, 8) + ", |g′(x*)|≈" + show(slope, 6) +
-          ": " + verdict
-        );
+      if(!roots.length)out.push("이 탐색에서 고정점을 검출하지 못했습니다. 근의 부재를 뜻하지 않으며 표본 탐색이 놓친 근이 있을 수 있습니다.");
+      else out.push("검출한 고정점("+roots.length+"개): "+roots.map(function(x){return show(x,8);}).join(", ")+". 모든 근을 찾았다는 보장은 없습니다.");
+      roots.forEach(function(x){
+        var slope=Math.abs(derivative(x));
+        out.push("x*≈"+show(x,8)+", |g′(x*)|≈"+show(slope,6)+": "+
+          (slope<1-1e-5?"국소적으로 끌림":slope>1+1e-5?"국소적으로 밀림":"경계 또는 수치상 불확실"));
       });
-  
-      state.push(
-        "|g′(x*)|<1은 미분 가능한 고정점에서의 국소 수렴 조건입니다. " +
-        "임의의 시작점에서 수렴한다는 뜻은 아닙니다."
-      );
-  
-      var auto = analyzeStart(startX);
-      state.push("x₀ 기준 별도 자동 진단: " + auto.status);
-      state.push(auto.detail);
-      state.push(
-        "자동 진단은 x₀에서 새로 계산하며, 위의 수동 반복 단계나 궤도를 변경하지 않습니다."
-      );
-  
-      if (p === 0) {
-        state.push(
-          "g(x)=cos(x): 유일한 실수 고정점은 약 0.739085이며, " +
-          "|g′(x*)|=|sin(x*)|<1입니다. 따라서 그 고정점 근방에서 수렴합니다."
-        );
-      } else if (p === 1) {
-        state.push(
-          "g(x)=x/2+1: 정확한 고정점은 x*=2, g′=1/2입니다. " +
-          "오차는 매 단계 정확히 절반이 되므로 모든 실수 시작점에서 수렴합니다."
-        );
-      } else if (p === 2) {
-        state.push(
-          "g(x)=rx(1−x)의 고정점은 x*=0과 x*=1−1/r입니다. " +
-          "각 도함수는 r과 2−r입니다."
-        );
-        state.push(
-          "0에서는 |g′(0)|=r, 비영 고정점에서는 |g′(x*)|=|2−r|입니다. " +
-          "경계값 |g′|=1에서는 이 기준만으로 결론을 내릴 수 없습니다."
-        );
-      } else {
-        state.push(
-          "g(x)=2.5−x²의 고정점은 x*=(−1±√11)/2입니다. " +
-          "양의 고정점에서는 |g′(x*)|>1이므로 그 점은 국소적으로 불안정합니다."
-        );
+      out.push("|g′(x*)|<1은 미분 가능한 고정점 근방의 국소 수렴 조건입니다. 임의의 시작점에서의 수렴을 보장하지 않습니다.");
+      var auto=analyze(hist[0]);
+      out.push("초기점 기준 별도 자동 진단: "+auto.status);
+      out.push(auto.detail+" 자동 진단은 수동 반복 경로를 변경하지 않습니다.");
+      if(p===0)out.push("cos(x)의 유일한 실수 고정점은 약 0.739085이며 |g′(x*)|<1이므로 그 근방에서 수렴합니다.");
+      if(p===1)out.push("g(x)=x/2+1의 고정점은 x*=2이며 모든 실수 초기점에서 수렴합니다.");
+      if(p===2){
+        out.push("g(x)=rx(1−x)의 고정점은 x*=0, 1−1/r입니다. 도함수 값은 r, 2−r입니다.");
+        out.push("각 고정점에서 |g′|<1이면 국소적으로 끌리며, |g′|=1에서는 이 기준만으로 결론을 내릴 수 없습니다.");
       }
-  
-      if (issue) state.push(issue);
-      X.setLines(box, state);
+      if(p===3)out.push("g(x)=2.5−x²의 고정점은 (−1±√11)/2입니다. 두 고정점 모두 |g′(x*)|>1이므로 국소적으로 불안정합니다.");
+      if(issue)out.push(issue);
+      X.setLines(box,out);
     }
-  
     reset(false);
   });
+  
 })();
 (function(){
   "use strict";
@@ -2405,537 +1812,172 @@ reg("path-limit",function(el,cfg){
   // 1. Gradient descent and learning rate
   // ============================================================
 
-  X.reg("gd-lr", function(el, cfg) {
-    cfg = cfg || {};
   
-    window.V6.title(
-      el,
-      cfg.title || "경사하강법: 학습률과 조건수"
-    );
-  
-    var cv = X.mkCanvas(el, 440);
-    var ctx = cv.ctx;
-    var controls = controlsFor(el);
-    var box = X.stateBox(el);
-  
-    var mode = 0;
-    var c = 2;
-    var x0 = 3;
-    var kappa = 10;
-    var custom = 2.2 / c;
-    var target = 1e-6;
-    var MAX_STEPS = 100000;
-  
-    X.select(
-      controls, "모드",
-      ["1변수: 학습률", "2변수 (κ)"],
-      0,
-      function(i) {
-        mode = i;
-        refresh();
-      }
-    );
-  
-    var sc = X.slider(
-      controls, "c", 0.5, 4, 0.1, c,
-      function(v) {
-        var product = custom * c;
-        c = v;
-        custom = product / c;
-  
-        sd.range(0, 2.5 / c, 0.01 / c);
-        sd.set(custom);
-        refresh();
-      },
-      function(v) { return fmt(v, 2); }
-    );
-  
-    var sx = X.slider(
-      controls, "x₀", -4, 4, 0.1, x0,
-      function(v) {
-        x0 = v;
-        refresh();
-      }
-    );
-  
-    var sd = X.slider(
-      controls,
-      "α 직접",
-      0, 2.5 / c, 0.01 / c, custom,
-      function(v) {
-        custom = v;
-        refresh();
-      },
-      function(v) {
-        return fmt(v, 4) +
-          " (2/c=" + fmt(2 / c, 4) + ")";
-      }
-    );
-  
-    var sk = X.slider(
-      controls, "κ", 1, 50, 1, kappa,
-      function(v) {
-        kappa = v;
-        refresh();
-      }
-    );
-  
-    function switchControls() {
-      sc.input.parentNode.style.display = mode ? "none" : "";
-      sx.input.parentNode.style.display = mode ? "none" : "";
-      sd.input.parentNode.style.display = mode ? "none" : "";
-      sk.input.parentNode.style.display = mode ? "" : "none";
+  X.reg("gd-lr", function(el,cfg){
+    cfg=cfg||{};
+    window.V6.title(el,cfg.title||"경사하강법: 학습률과 조건수");
+    var cv=X.mkCanvas(el,440),ctx=cv.ctx,controls=controlsFor(el),box=X.stateBox(el);
+    var mode=0,c=2,x0=3,kappa=10,custom=1.1,target=1e-6,MAX_STEPS=100000;
+    X.select(controls,"모드",["1변수: 학습률","2변수 (κ)"],0,function(v){mode=v;refresh();});
+    var sc=X.slider(controls,"c",0.5,4,0.1,c,function(v){
+      var product=custom*c;c=v;custom=product/c;
+      sd.range(0,2.5/c,0.01/c);sd.set(custom);refresh();
+    });
+    var sx=X.slider(controls,"x₀",-4,4,0.1,x0,function(v){x0=v;refresh();});
+    var sd=X.slider(controls,"α 직접",0,2.5/c,0.01/c,custom,function(v){custom=v;refresh();},
+      function(v){return fmt(v,4)+" (2/c="+fmt(2/c,4)+")";});
+    var sk=X.slider(controls,"κ",1,50,1,kappa,function(v){kappa=v;refresh();});
+    function switchControls(){
+      sc.input.parentNode.style.display=mode?"none":"";
+      sx.input.parentNode.style.display=mode?"none":"";
+      sd.input.parentNode.style.display=mode?"none":"";
+      sk.input.parentNode.style.display=mode?"":"none";
     }
-  
-    function finiteNumber(v) {
-      return typeof v === "number" && Number.isFinite(v);
+    function finiteN(x){return typeof x==="number"&&Number.isFinite(x);}
+    function stepsText(n){return n===null?"10만 단계 내 미도달":n===Infinity?"유한 단계로 도달 불가":String(n);}
+    function classify(alpha){
+      var r=1-alpha*c,rho=Math.abs(r);
+      if(alpha<0)return{r:r,rho:rho,kind:"invalid",label:"음의 학습률"};
+      if(alpha===0)return{r:r,rho:rho,kind:"stationary",label:"정지"};
+      if(alpha===1/c)return{r:0,rho:0,kind:"exact",label:"한 단계 정확 도달"};
+      if(alpha>0&&alpha<2/c)return{r:r,rho:rho,kind:"converge",label:"수렴"};
+      if(alpha===2/c)return{r:r,rho:rho,kind:"boundary",label:"경계: 진동"};
+      return{r:r,rho:rho,kind:"diverge",label:"발산"};
     }
-  
-    function stepsText(n) {
-      if (n === null) return "10만 단계 내 미도달";
-      return Number.isFinite(n) ? String(n) : "유한 단계로 도달 불가";
+    function reachSim(f0,r){
+      if(f0<target)return 0;
+      if(r===0)return 1;
+      if(!(Math.abs(r)<1))return Infinity;
+      var f=f0,k=0;
+      while(k<MAX_STEPS&&f>=target){f*=r*r;k++;if(!finiteN(f))return null;}
+      return f<target?k:null;
     }
-  
-    function classify(alpha) {
-      var r = 1 - alpha * c;
-      var rho = Math.abs(r);
-  
-      if (alpha < 0) {
-        return {r:r, rho:rho, kind:"invalid", label:"음의 학습률"};
-      }
-      if (alpha === 0) {
-        return {r:r, rho:rho, kind:"stationary", label:"정지"};
-      }
-      if (alpha === 1 / c) {
-        return {r:0, rho:0, kind:"exact", label:"한 단계 정확 도달"};
-      }
-      if (alpha > 0 && alpha < 2 / c) {
-        return {r:r, rho:rho, kind:"converge", label:"수렴"};
-      }
-      if (alpha === 2 / c) {
-        return {r:r, rho:rho, kind:"boundary", label:"경계: 진동"};
-      }
-      return {r:r, rho:rho, kind:"diverge", label:"발산"};
-    }
-  
-    // 실제 반복을 수행한다. 목표는 엄격한 f_k < target.
-    // 반환값은 단계 수, 10만 단계 내 미도달(null), 또는
-    // 유한 단계로 도달할 수 없는 경우(Infinity)다.
-    function reachSim(f0, r) {
-      if (f0 < target) return 0;
-      if (r === 0) return 1;
-      if (!(Math.abs(r) < 1)) return Infinity;
-  
-      var f = f0;
-      var step = 0;
-  
-      while (step < MAX_STEPS && f >= target) {
-        f *= r * r;
-        step++;
-  
-        if (!finiteNumber(f)) return null;
-      }
-  
-      return f < target ? step : null;
-    }
-  
-    // f_k = f_0 * rho^(2k)에서 최소 k를 계산한다.
-    // 로그를 이용한 추정 후 엄격한 부등식을 재검사한다.
-    function reachExact(f0, r) {
-      if (f0 < target) return 0;
-      if (r === 0) return 1;
-  
-      var rho = Math.abs(r);
-      if (!(rho < 1)) return Infinity;
-  
-      var logRatio = Math.log(target) - Math.log(f0);
-      var logRho = Math.log(rho);
-  
-      var n = Math.max(
-        0,
-        Math.floor(logRatio / (2 * logRho)) + 1
-      );
-  
-      function below(i) {
-        return Math.log(f0) + 2 * i * logRho <
-          Math.log(target);
-      }
-  
-      while (!below(n)) n++;
-      while (n > 0 && below(n - 1)) n--;
-  
+    function reachExact(f0,r){
+      if(f0<target)return 0;
+      if(r===0)return 1;
+      var rho=Math.abs(r);
+      if(!(rho<1))return Infinity;
+      var lr=Math.log(rho),lf=Math.log(f0),lt=Math.log(target);
+      var n=Math.max(0,Math.floor((lt-lf)/(2*lr))+1);
+      function below(k){return lf+2*k*lr<lt;}
+      while(!below(n)&&n<Number.MAX_SAFE_INTEGER)n++;
+      while(n>0&&below(n-1))n--;
       return n;
     }
-  
-    function drawOneVariable() {
-      var ymax = Math.max(1, 9 * c);
-      var alphas = [
-        0.1 / c,
-        1 / c,
-        1.9 / c,
-        custom
+    function drawOneVariable(){
+      var f0=c*x0*x0/2;
+      var alphas=[0.1/c,1/c,1.9/c,custom];
+      var styles=[
+        {color:INK,shape:0,label:"① 0.1/c"},
+        {color:INK,shape:1,label:"② 1/c"},
+        {color:INK,shape:2,label:"③ 1.9/c"},
+        {color:RED,shape:3,label:"④ 직접"}
       ];
-  
-      var styles = [
-        {color:INK, shape:0, label:"① 0.1/c"},
-        {color:INK, shape:1, label:"② 1/c"},
-        {color:INK, shape:2, label:"③ 1.9/c"},
-        {color:RED, shape:3, label:"④ 직접"}
-      ];
-  
-      var f0 = c * x0 * x0 / 2;
-      var top = X.frame(
-        ctx, 720, 225,
-        [-4, 4], [0, ymax],
-        {L:48, R:20, T:34, B:29, nx:8, ny:4}
-      );
-  
-      tag(ctx, "f(x) = ½cx² · 점: 반복 위치 xₖ", 55, 16);
-  
-      styles.forEach(function(s, j) {
-        var lx = [345, 431, 517, 625][j];
-        marker(ctx, lx, 16, j, s.color, 3);
-        tag(ctx, s.label, lx + 8, 19, s.color);
-      });
-  
-      X.curve(
-        ctx, top,
-        function(x) { return c * x * x / 2; },
-        [-4, 4], [0, ymax], INK, 1.6
-      );
-  
-      var data = [];
-  
-      alphas.forEach(function(alpha, j) {
-        var cl = classify(alpha);
-        var r = cl.r;
-        var logs = [];
-        var xs = [];
-  
-        for (var k = 0; k <= 25; k++) {
-          var x = x0 * Math.pow(r, k);
-          xs.push(x);
-  
-          var logf;
-          if (f0 === 0) {
-            logf = -Infinity;
-          } else if (r === 0 && k > 0) {
-            logf = -Infinity;
-          } else {
-            logf = Math.log10(f0) +
-              2 * k * Math.log10(Math.abs(r) || 1);
-          }
-  
-          logs.push([k, logf]);
+      var top=X.frame(ctx,720,225,[-4,4],[0,Math.max(1,9*c)],{L:48,R:20,T:34,B:29,nx:8,ny:4});
+      tag(ctx,"f(x)=½cx² · 점: 반복 위치 xₖ",55,16);
+      styles.forEach(function(s,j){var lx=[345,431,517,625][j];marker(ctx,lx,16,j,s.color,3);tag(ctx,s.label,lx+8,19,s.color);});
+      X.curve(ctx,top,function(x){return c*x*x/2;},[-4,4],[0,Math.max(1,9*c)],INK,1.6);
+      var data=[],outside=false;
+      alphas.forEach(function(alpha,j){
+        var cl=classify(alpha),xs=[],logs=[];
+        for(var k=0;k<=25;k++){
+          var x=x0*Math.pow(cl.r,k);xs.push(x);
+          var lf=f0===0||cl.r===0&&k>0?-Infinity:Math.log10(f0)+2*k*Math.log10(Math.abs(cl.r)||1);
+          logs.push([k,lf]);
+          if(Math.abs(x)>4)outside=true;
         }
-  
-        data.push({xs:xs, logs:logs, classification:cl});
-  
-        ctx.save();
-        top.clip();
-  
-        var prev = null;
-        for (var i = 0; i <= 12; i++) {
-          var xx = xs[i];
-          var yy = c * xx * xx / 2;
-  
-          if (finiteNumber(yy) && Math.abs(xx) <= 4.01) {
-            if (prev) {
-              line(
-                ctx, top,
-                prev[0], prev[1], xx, yy,
-                styles[j].color, 0.9,
-                j === 3 ? [4, 3] : []
-              );
-            }
-  
-            marker(
-              ctx,
-              top.px(xx), top.py(yy),
-              styles[j].shape,
-              styles[j].color,
-              i === 0 ? 3.7 : 2.7
-            );
-          }
-  
-          prev = [xx, yy];
+        data.push({xs:xs,logs:logs,classification:cl});
+        ctx.save();top.clip();var prev=null;
+        for(var i=0;i<=12;i++){
+          var xx=xs[i],yy=c*xx*xx/2;
+          if(finiteN(yy)&&Math.abs(xx)<=4){
+            if(prev)line(ctx,top,prev[0],prev[1],xx,yy,styles[j].color,0.9,j===3?[4,3]:[]);
+            marker(ctx,top.px(xx),top.py(yy),styles[j].shape,styles[j].color,i===0?3.7:2.7);
+            prev=[xx,yy];
+          }else prev=null;
         }
-  
         ctx.restore();
       });
-  
-      // 아래 패널: log₁₀ fₖ. 목표선은 log₁₀(10⁻⁶) = -6.
-      ctx.save();
-      ctx.translate(0, 235);
-  
-      var high = Math.max(2, f0 > 0 ? Math.log10(f0) + 0.5 : 2);
-  
-      data.forEach(function(D) {
-        D.logs.forEach(function(p) {
-          if (finiteNumber(p[1])) high = Math.max(high, p[1] + 0.5);
+      ctx.save();ctx.translate(0,235);
+      var high=Math.max(2,f0>0?Math.log10(f0)+0.5:2);
+      data.forEach(function(D){D.logs.forEach(function(q){if(finiteN(q[1]))high=Math.max(high,q[1]+0.5);});});
+      high=Math.min(25,high);var low=-13;
+      var bottom=X.frame(ctx,720,205,[0,25],[low,high],{L:48,R:20,T:31,B:30,nx:5,ny:4});
+      tag(ctx,"log₁₀ f(xₖ) · fₖ=0이면 로그는 정의되지 않음",55,17);
+      line(ctx,bottom,0,-6,25,-6,INK,1,[5,4]);ctx.save();bottom.clip();
+      data.forEach(function(D,j){
+        var prev=null;
+        D.logs.forEach(function(q){
+          if(finiteN(q[1])){
+            if(prev)line(ctx,bottom,prev[0],prev[1],q[0],q[1],styles[j].color,j===3?1.7:1.2,j===3?[5,4]:[]);
+            marker(ctx,bottom.px(q[0]),bottom.py(q[1]),styles[j].shape,styles[j].color,2.4);prev=q;
+          }else prev=null;
         });
       });
-  
-      high = Math.min(25, high);
-      var low = -13;
-  
-      var bottom = X.frame(
-        ctx, 720, 205,
-        [0, 25], [low, high],
-        {L:48, R:20, T:31, B:30, nx:5, ny:4}
-      );
-  
-      tag(ctx, "log₁₀ f(xₖ) · fₖ=0에서는 로그가 정의되지 않음", 55, 17);
-      line(ctx, bottom, 0, -6, 25, -6, INK, 1, [5, 4]);
-  
-      ctx.save();
-      bottom.clip();
-  
-      data.forEach(function(D, j) {
-        var last = null;
-  
-        D.logs.forEach(function(p) {
-          if (finiteNumber(p[1])) {
-            if (last) {
-              line(
-                ctx, bottom,
-                last[0], last[1], p[0], p[1],
-                styles[j].color,
-                j === 3 ? 1.7 : 1.2,
-                j === 3 ? [5, 4] : []
-              );
-            }
-  
-            marker(
-              ctx,
-              bottom.px(p[0]), bottom.py(p[1]),
-              styles[j].shape, styles[j].color, 2.4
-            );
-  
-            last = p;
-          } else {
-            last = null;
-          }
-        });
-      });
-  
-      ctx.restore();
-      ctx.restore();
-  
-      var out = [
-        "f(x)=½cx², xₖ₊₁=(1−αc)xₖ, f₀=" + fmt(f0, 5),
-        "수렴 조건: 0<α<2/c=" + fmt(2 / c, 4).toString() +
-          " · 목표: fₖ<10⁻⁶ (엄격한 부등식)",
-        "경계 구분: α=0이면 정지, α=1/c이면 한 단계 정확 도달, " +
-          "α=2/c이면 부호가 바뀌는 진동, α>2/c이면 발산."
+      ctx.restore();ctx.restore();
+      var out=[
+        "f(x)=½cx², xₖ₊₁=(1−αc)xₖ, f₀="+fmt(f0,5),
+        "수렴 조건: 0<α<2/c="+fmt(2/c,4)+" · 목표: fₖ<10⁻⁶",
+        "α=0: 정지, α=1/c: 한 단계 정확 도달, α=2/c: 비영 초기점에서 진동, α>2/c: 최적점이 아닌 초기점에서는 발산."
       ];
-  
-      alphas.forEach(function(alpha, j) {
-        var cl = data[j].classification;
-        var sim = reachSim(f0, cl.r);
-        var exact = reachExact(f0, cl.r);
-        var status = cl.label;
-  
-        if (cl.kind === "boundary" && f0 < target) {
-          status += " (이미 목표 달성)";
-        } else if (cl.kind === "boundary" && f0 >= target) {
-          status += " (함숫값 일정, 목표 미도달)";
-        } else if (cl.kind === "stationary" && f0 >= target) {
-          status += " (초기값 유지)";
-        } else if (cl.kind === "diverge" && f0 >= target) {
-          status += " (비영 초기값이면 목표에 수렴하지 않음)";
-        }
-  
-        var compare;
-        if (sim === exact) {
-          compare = "일치";
-        } else if (sim === null) {
-          compare = "시뮬레이션 상한 도달";
-        } else {
-          compare = "불일치: 부동소수점 오차 또는 반복 상한 확인";
-        }
-  
-        out.push(
-          (j + 1) + " " + styles[j].label +
-          ": α=" + fmt(alpha, 5) +
-          ", ρ=|1−αc|=" + fmt(cl.rho, 5) +
-          ", " + status +
-          ", 단계(반복/공식)=" +
-          stepsText(sim) + "/" + stepsText(exact) +
-          " · " + compare
-        );
+      if(f0===0)out.push("현재 x₀=0이므로 이미 최적점에 도달했습니다. 모든 학습률에서 이 초기점은 0에 머뭅니다. 아래 학습률 분류는 일반적인 안정성 분석입니다.");
+      alphas.forEach(function(alpha,j){
+        var cl=data[j].classification,sim=reachSim(f0,cl.r),exact=reachExact(f0,cl.r);
+        var status=cl.label;
+        if(f0===0)status+=" · 초기점에서 이미 목표 달성";
+        else if(cl.kind==="boundary")status+=f0<target?" · 이미 목표 달성":" · 함수값 일정, 목표 미도달";
+        else if(cl.kind==="stationary"&&f0>=target)status+=" · 초기값 유지";
+        else if(cl.kind==="diverge"&&f0>=target)status+=" · 목표로 수렴하지 않음";
+        var compare=sim===exact?"일치":sim===null?"시뮬레이션 상한 도달":"불일치: 반올림·언더플로·경계 비교 차이 가능";
+        out.push((j+1)+" "+styles[j].label+": α="+fmt(alpha,5)+", ρ="+fmt(cl.rho,5)+", "+status+
+          ", 단계(반복/공식)="+stepsText(sim)+"/"+stepsText(exact)+" · "+compare);
       });
-  
-      out.push(
-        "0<ρ<1이고 f₀≥10⁻⁶일 때 최소 단계는 " +
-          "⌊log(10⁻⁶/f₀)/(2logρ)⌋+1. " +
-          "목표보다 작은 값에서 시작하면 0단계입니다."
-      );
-  
-      out.push(
-        "반복 단계 k는 초기 상태 x₀에서 업데이트를 k번 적용한 상태 xₖ를 뜻합니다. " +
-          "공식은 실수 연산의 이론값이고 시뮬레이션은 부동소수점 연산이므로 " +
-          "목표 경계 근처에서는 반올림으로 단계가 달라질 수 있습니다."
-      );
-  
-      out.push(
-        "α=1/c이면 x₁=0으로 정확 도달합니다. α=2/c에서는 xₖ=(−1)ᵏx₀라서 " +
-          "x₀≠0일 때 진동하며 fₖ=f₀로 일정합니다."
-      );
-  
-      X.setLines(box, out);
+      if(outside)out.push("일부 반복점이 x∈[−4,4] 범위를 벗어났습니다. 위쪽 그래프에서 경로가 잘릴 수 있으며, 이는 반복 계산이 멈췄다는 뜻이 아닙니다.");
+      out.push("0<ρ<1이고 f₀≥10⁻⁶이면 최소 단계는 ⌊log(10⁻⁶/f₀)/(2logρ)⌋+1입니다. 이미 목표 미만이면 0단계입니다.");
+      out.push("반복은 부동소수점 연산, 공식은 로그를 이용한 이론 계산입니다. 경계 부근에서는 반올림과 언더플로 때문에 결과가 달라질 수 있습니다.");
+      X.setLines(box,out);
     }
-  
-    function drawTwoVariables() {
-      var r = (kappa - 1) / (kappa + 1);
-      var alpha = 2 / (kappa + 1);
-      var f0 = (16 + kappa) / 2;
-      var pts = [];
-  
-      // ∇f=(x,κy), α=2/(1+κ).
-      // xₖ₊₁=rxₖ, yₖ₊₁=−ryₖ.
-      for (var j = 0; j <= 25; j++) {
-        pts.push([
-          4 * Math.pow(r, j),
-          Math.pow(-r, j)
-        ]);
-      }
-  
-      var f1 = (
-        pts[1][0] * pts[1][0] +
-        kappa * pts[1][1] * pts[1][1]
-      ) / 2;
-  
-      ctx.save();
-      ctx.translate(0, 38);
-  
-      var left = X.frame(
-        ctx, 360, 360,
-        [-9, 9], [-9, 9],
-        {L:33, R:27, T:34, B:30, nx:4, ny:4}
-      );
-  
-      tag(ctx, "(x,y) 경로 · 등고선은 타원", 36, 18);
-  
-      ctx.save();
-      left.clip();
-  
-      [1, 0.5, 0.2, 0.05].forEach(function(q) {
-        var f = f0 * q;
-        var ax = Math.sqrt(2 * f);
-        var by = Math.sqrt(2 * f / kappa);
-        var ellipse = [];
-  
-        for (var z = 0; z <= 160; z++) {
-          var t = TAU * z / 160;
-          ellipse.push([
-            ax * Math.cos(t),
-            by * Math.sin(t)
-          ]);
-        }
-  
-        poly(ctx, left, ellipse, GRID, 1.2, [], true);
+    function drawTwoVariables(){
+      var r=(kappa-1)/(kappa+1),alpha=2/(kappa+1),f0=(16+kappa)/2,pts=[];
+      for(var j=0;j<=25;j++)pts.push([4*Math.pow(r,j),Math.pow(-r,j)]);
+      var f1=(pts[1][0]*pts[1][0]+kappa*pts[1][1]*pts[1][1])/2;
+      ctx.save();ctx.translate(0,38);
+      var left=X.frame(ctx,360,360,[-9,9],[-9,9],{L:33,R:27,T:34,B:30,nx:4,ny:4});
+      tag(ctx,"(x,y) 경로 · 이론값",36,18);ctx.save();left.clip();
+      [1,0.5,0.2,0.05].forEach(function(q){
+        var f=f0*q,ax=Math.sqrt(2*f),by=Math.sqrt(2*f/kappa),ellipse=[];
+        for(var z=0;z<=160;z++){var t=TAU*z/160;ellipse.push([ax*Math.cos(t),by*Math.sin(t)]);}
+        poly(ctx,left,ellipse,GRID,1.2,[],true);
       });
-  
-      poly(ctx, left, pts, RED, 1.8);
-  
-      pts.forEach(function(p, i) {
-        marker(
-          ctx,
-          left.px(p[0]), left.py(p[1]),
-          0,
-          i === 0 ? INK : RED,
-          i === 0 ? 4 : 2.5
-        );
-      });
-  
-      ctx.restore();
-      ctx.restore();
-  
-      ctx.save();
-      ctx.translate(360, 38);
-  
-      var log0 = Math.log10(f0);
-      var right = X.frame(
-        ctx, 360, 360,
-        [0, 25], [-13, Math.max(2, log0 + 0.5)],
-        {L:47, R:14, T:34, B:30, nx:5, ny:4}
-      );
-  
-      tag(ctx, "log₁₀ f(xₖ,yₖ)", 50, 18);
-      line(ctx, right, 0, -6, 25, -6, INK, 1, [4, 4]);
-  
-      ctx.save();
-      right.clip();
-  
-      var last = null;
-  
-      for (var i = 0; i <= 25; i++) {
-        var logf = (r === 0 && i > 0)
-          ? -Infinity
-          : log0 + 2 * i * Math.log10(r || 1);
-  
-        if (!finiteNumber(logf)) {
-          last = null;
-          continue;
-        }
-  
-        if (last) {
-          line(
-            ctx, right,
-            last[0], last[1], i, logf,
-            RED, 1.5
-          );
-        }
-  
-        marker(
-          ctx,
-          right.px(i), right.py(logf),
-          0, RED, 2.5
-        );
-  
-        last = [i, logf];
+      poly(ctx,left,pts,RED,1.8);
+      pts.forEach(function(q,i){marker(ctx,left.px(q[0]),left.py(q[1]),0,i===0?INK:RED,i===0?4:2.5);});
+      ctx.restore();ctx.restore();
+      ctx.save();ctx.translate(360,38);
+      var log0=Math.log10(f0),right=X.frame(ctx,360,360,[0,25],[-13,Math.max(2,log0+0.5)],{L:47,R:14,T:34,B:30,nx:5,ny:4});
+      tag(ctx,"log₁₀ f(xₖ,yₖ) · 이론값",50,18);line(ctx,right,0,-6,25,-6,INK,1,[4,4]);ctx.save();right.clip();
+      var prev=null;
+      for(var i=0;i<=25;i++){
+        var lf=r===0&&i>0?-Infinity:log0+2*i*Math.log10(r||1);
+        if(!finiteN(lf)){prev=null;continue;}
+        if(prev)line(ctx,right,prev[0],prev[1],i,lf,RED,1.5);
+        marker(ctx,right.px(i),right.py(lf),0,RED,2.5);prev=[i,lf];
       }
-  
-      ctx.restore();
-      ctx.restore();
-  
-      var observedRatio = f1 / f0;
-      var theoreticalBound = r * r;
-  
-      X.setLines(box, [
-        "f(x,y)=½(x²+κy²), 시작점 (4,1), κ=" +
-          fmt(kappa, 0) +
-          ", α*=2/(1+κ)=" + fmt(alpha, 6),
-  
-        "좌표 배율: x는 " + fmt(r, 6) +
-          ", y는 " + fmt(-r, 6) +
-          " · 실제 f₁/f₀=" + fmt(observedRatio, 7),
-  
-        "이론상 최악 방향의 함수값 수축률 상한은 " +
-          "((κ−1)/(κ+1))²=" + fmt(theoreticalBound, 7) +
-          ". 이는 모든 시작점에서의 실제 f₁/f₀와 같다는 뜻은 아닙니다.",
-  
-        kappa === 1
-          ? "κ=1: α*=1이므로 첫 단계에서 (0,0)에 정확히 도달합니다."
-          : "κ>1이면 y 좌표의 부호가 번갈아 바뀌고 두 좌표 모두 수축합니다. " +
-            "이 α*는 고정 학습률에서 최악 좌표 수축률을 최소화합니다.",
-  
-        "단계 k는 업데이트를 k번 적용한 상태입니다. 로그 그래프는 이론값을 " +
-          "표시하며, f=0이면 로그를 그릴 수 없습니다."
+      ctx.restore();ctx.restore();
+      X.setLines(box,[
+        "f(x,y)=½(x²+κy²), 시작점 (4,1), κ="+fmt(kappa,0)+", α*=2/(1+κ)="+fmt(alpha,6),
+        "좌표 배율: x는 "+fmt(r,6), "y는 "+fmt(-r,6)+", 실제 f₁/f₀="+fmt(f1/f0,7),
+        "최악 방향의 함수값 수축률 상한은 ((κ−1)/(κ+1))²="+fmt(r*r,7)+". 이는 모든 시작점에서의 실제 비율과 같다는 뜻은 아닙니다.",
+        kappa===1?"κ=1: α*=1이므로 첫 단계에서 (0,0)에 도달합니다.":"κ>1이면 y 좌표의 부호가 번갈아 바뀌며 두 좌표 모두 수축합니다.",
+        "단계 k는 업데이트를 k번 적용한 상태입니다. f=0이면 로그 그래프를 그릴 수 없습니다."
       ]);
     }
-  
-    function refresh() {
-      switchControls();
-      cv.clear();
-  
-      if (mode) drawTwoVariables();
-      else drawOneVariable();
+    function refresh(){
+      switchControls();cv.clear();
+      if(mode)drawTwoVariables();else drawOneVariable();
     }
-  
     refresh();
   });
+  
 
   // ============================================================
   // 2. Directional derivative
@@ -3592,378 +2634,149 @@ reg("path-limit",function(el,cfg){
   // 4. Linear map, determinant and signed area
   // ============================================================
 
-  X.reg("linear-map", function(el, cfg) {
-    cfg = cfg || {};
   
-    window.V6.title(
-      el,
-      cfg.title || "선형변환 M: 격자, 넓이, 행렬식"
-    );
-  
-    var cv = X.mkCanvas(el, 375);
-    var ctx = cv.ctx;
-    var controls = controlsFor(el);
-    var box = X.stateBox(el);
-  
-    var INK = "#1a1a1a";
-    var RED = "#9e2b25";
-    var GRID = "#e8e6e0";
-    var WHITE = "#ffffff";
-  
-    var a = 1, b = 0, c = 0, d = 1;
-    var locked = false;
-    var showGrid = true;
-  
-    // Determinant and orientation use one shared numerical tolerance.
-    // A determinant within tolerance is treated as numerically singular.
-    var DET_EPS = 1e-9;
-  
-    var presets = [
-      [1, 0, 0, 1],
-      [
-        Math.sqrt(3) / 2, -0.5,
-        0.5, Math.sqrt(3) / 2
-      ],
-      [1, 1, 0, 1],
-      [-1, 0, 0, 1],
-      [1.5, 0, 0, 0.5],
-      [1, 2, 2, 4]
+  X.reg("linear-map",function(el,cfg){
+    cfg=cfg||{};
+    window.V6.title(el,cfg.title||"선형변환 M: 격자, 넓이, 행렬식");
+    var cv=X.mkCanvas(el,375),ctx=cv.ctx,controls=controlsFor(el),box=X.stateBox(el);
+    var INK="#1a1a1a",RED="#9e2b25",GRID="#e8e6e0",WHITE="#ffffff";
+    var a=1,b=0,c=0,d=1,locked=false,showGrid=true,DET_EPS=1e-9;
+    var presets=[
+      [1,0,0,1],
+      [Math.sqrt(3)/2,-0.5,0.5,Math.sqrt(3)/2],
+      [1,1,0,1],[-1,0,0,1],[1.5,0,0,0.5],[1,2,2,4]
     ];
-  
-    X.select(
-      controls,
-      "예제",
-      [
-        "직접 조절",
-        "항등변환",
-        "30° 회전",
-        "전단",
-        "반사",
-        "축방향 확대",
-        "특이행렬"
-      ],
-      1,
-      function(i) {
-        if (!i) return;
-  
-        locked = true;
-  
-        var p = presets[i - 1];
-  
-        a = p[0];
-        b = p[1];
-        c = p[2];
-        d = p[3];
-  
-        // Preserve exact preset values even when they are not
-        // multiples of the sliders' ordinary 0.1 increment.
-        [sa, sb, sc, sd].forEach(function(s) {
-          s.input.step = i === 2 ? "any" : "0.1";
-        });
-  
-        sa.set(a);
-        sb.set(b);
-        sc.set(c);
-        sd.set(d);
-  
-        locked = false;
-        refresh();
-      }
-    );
-  
-    function changed(which, v) {
-      if (locked) return;
-  
-      if (which === 0) a = v;
-      else if (which === 1) b = v;
-      else if (which === 2) c = v;
-      else d = v;
-  
+    X.select(controls,"예제",["직접 조절","항등변환","30° 회전","전단","반사","축방향 확대","특이행렬"],1,function(i){
+      if(!i)return;
+      locked=true;
+      var q=presets[i-1];a=q[0];b=q[1];c=q[2];d=q[3];
+      [sa,sb,sc,sd].forEach(function(s){
+        s.input.step=i===2?"any":"0.1";
+      });
+      sa.set(a);sb.set(b);sc.set(c);sd.set(d);
+      locked=false;refresh();
+    });
+    function changed(which,v){
+      if(locked)return;
+      if(which===0)a=v;else if(which===1)b=v;else if(which===2)c=v;else d=v;
       refresh();
     }
+    var sa=X.slider(controls,"a",-3,3,0.1,a,function(v){changed(0,v);},function(v){return fmt(v,4);});
+    var sb=X.slider(controls,"b",-3,3,0.1,b,function(v){changed(1,v);},function(v){return fmt(v,4);});
+    var sc=X.slider(controls,"c",-3,3,0.1,c,function(v){changed(2,v);},function(v){return fmt(v,4);});
+    var sd=X.slider(controls,"d",-3,3,0.1,d,function(v){changed(3,v);},function(v){return fmt(v,4);});
+    X.btn(controls,"격자 숨기기",function(){showGrid=false;refresh();});
+    X.btn(controls,"격자 보이기",function(){showGrid=true;refresh();});
   
-    var sa = X.slider(
-      controls, "a", -3, 3, 0.1, a,
-      function(v) { changed(0, v); },
-      function(v) { return fmt(v, 4); }
-    );
+    function scientific(x){
+      if(x===0)return "0";
+      return x.toExponential(1).replace("e-","×10⁻").replace("e+","×10⁺");
+    }
+    function transform(x,y){return[a*x+b*y,c*x+d*y];}
   
-    var sb = X.slider(
-      controls, "b", -3, 3, 0.1, b,
-      function(v) { changed(1, v); },
-      function(v) { return fmt(v, 4); }
-    );
+    function frameFor(offset,points){
+      var maxAbs=2;
+      points.forEach(function(q){
+        maxAbs=Math.max(maxAbs,Math.abs(q[0]),Math.abs(q[1]));
+      });
+      var half=Math.max(2,Math.min(1e6,maxAbs*1.18));
+      return squareFrame(ctx,offset,half);
+    }
   
-    var sc = X.slider(
-      controls, "c", -3, 3, 0.1, c,
-      function(v) { changed(2, v); },
-      function(v) { return fmt(v, 4); }
-    );
-  
-    var sd = X.slider(
-      controls, "d", -3, 3, 0.1, d,
-      function(v) { changed(3, v); },
-      function(v) { return fmt(v, 4); }
-    );
-  
-    X.btn(controls, "격자 숨기기", function() {
-      showGrid = false;
-      refresh();
-    });
-  
-    X.btn(controls, "격자 보이기", function() {
-      showGrid = true;
-      refresh();
-    });
-  
-    // X.frame draws a reference grid. When hiding the grid,
-    // repaint only the plot interior, then redraw the axes.
-    // This leaves titles, labels, and the other panel untouched.
-    function clearInterior(fr) {
+    function clearInterior(fr){
+      // Use the frame's actual plot rectangle, not assumed fixed dimensions.
+      var x0=fr.L,y0=fr.T;
+      var x1=cv.W-fr.R,y1=cv.H-fr.B;
       ctx.save();
-  
-      ctx.beginPath();
-      ctx.rect(33, 30, 300, 300);
-      ctx.clip();
-  
-      ctx.fillStyle = WHITE;
-      ctx.fillRect(33, 30, 300, 300);
-  
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.1;
-  
-      ctx.beginPath();
-      ctx.moveTo(fr.px(0), 30);
-      ctx.lineTo(fr.px(0), 330);
-  
-      ctx.moveTo(33, fr.py(0));
-      ctx.lineTo(333, fr.py(0));
-      ctx.stroke();
-  
-      ctx.restore();
+      ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();
+      ctx.fillStyle=WHITE;ctx.fillRect(x0,y0,x1-x0,y1-y0);
+      ctx.strokeStyle=INK;ctx.lineWidth=1.1;ctx.beginPath();
+      if(fr.px(0)>=x0&&fr.px(0)<=x1){
+        ctx.moveTo(fr.px(0),y0);ctx.lineTo(fr.px(0),y1);
+      }
+      if(fr.py(0)>=y0&&fr.py(0)<=y1){
+        ctx.moveTo(x0,fr.py(0));ctx.lineTo(x1,fr.py(0));
+      }
+      ctx.stroke();ctx.restore();
     }
   
-    function refresh() {
+    function refresh(){
       cv.clear();
+      var D=a*d-b*c,singular=Math.abs(D)<DET_EPS;
+      var E1=transform(1,0),E2=transform(0,1),E12=transform(1,1);
+      var original=[[0,0],[1,0],[1,1],[0,1]];
+      var imagePts=[[0,0],E1,E12,E2];
   
-      var det = a * d - b * c;
-      var singular = Math.abs(det) < DET_EPS;
-  
-      function transform(x, y) {
-        return [
-          a * x + b * y,
-          c * x + d * y
-        ];
-      }
-  
-      var E1 = transform(1, 0);
-      var E2 = transform(0, 1);
-      var E12 = transform(1, 1);
-  
-      var original = [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 1]
-      ];
-  
-      var image = [
-        [0, 0],
-        E1,
-        E12,
-        E2
-      ];
-  
-      ctx.save();
-      ctx.translate(0, 10);
-  
-      // Original domain.
-      var left = squareFrame(ctx);
-  
-      if (!showGrid) clearInterior(left);
-  
-      tag(ctx, "원래 평면 · 단위 정사각형", 35, 16);
-  
-      left.clip();
-  
-      poly(
-        ctx, left, original,
-        INK, 1.5, [], true,
-        "rgba(26,26,26,0.12)"
-      );
-  
-      X.arrow(
-        ctx,
-        left.px(0), left.py(0),
-        left.px(1), left.py(0),
-        INK, 2.5, 8
-      );
-  
-      X.arrow(
-        ctx,
-        left.px(0), left.py(0),
-        left.px(0), left.py(1),
-        RED, 2.5, 8
-      );
-  
-      arcArrow(
-        ctx, left,
-        [1, 0], [0, 1],
-        0.5, INK
-      );
-  
-      tag(
-        ctx, "e₁",
-        left.px(1) + 6, left.py(0) - 8,
-        INK
-      );
-  
-      tag(
-        ctx, "e₂",
-        left.px(0) + 8, left.py(1) - 4,
-        RED
-      );
-  
-      ctx.restore();
-      ctx.translate(360, 0);
-  
-      // Image plane.
-      var right = squareFrame(ctx);
-  
-      if (!showGrid) clearInterior(right);
-  
-      tag(ctx, "상: M(x,y)", 35, 16);
-  
-      right.clip();
-  
-      if (showGrid) {
-        for (var j = -4; j <= 4; j++) {
-          var s = transform(j, -4);
-          var t = transform(j, 4);
-  
-          line(
-            ctx, right,
-            s[0], s[1], t[0], t[1],
-            GRID, 1.2
-          );
-  
-          s = transform(-4, j);
-          t = transform(4, j);
-  
-          line(
-            ctx, right,
-            s[0], s[1], t[0], t[1],
-            GRID, 1.2
-          );
+      ctx.save();ctx.translate(0,10);
+      var left=squareFrame(ctx);
+      if(!showGrid)clearInterior(left);
+      tag(ctx,"원래 평면 · 단위 정사각형",35,16);
+      if(showGrid){
+        for(var i=-4;i<=4;i++){
+          line(ctx,left,i,-4,i,4,GRID,1);
+          line(ctx,left,-4,i,4,i,GRID,1);
         }
       }
-  
-      poly(
-        ctx, right, image,
-        INK, 1.7, [], true,
-        "rgba(26,26,26,0.12)"
-      );
-  
-      X.arrow(
-        ctx,
-        right.px(0), right.py(0),
-        right.px(E1[0]), right.py(E1[1]),
-        INK, 2.4, 8
-      );
-  
-      X.arrow(
-        ctx,
-        right.px(0), right.py(0),
-        right.px(E2[0]), right.py(E2[1]),
-        RED, 2.4, 8
-      );
-  
-      arcArrow(ctx, right, E1, E2, 0.5, INK);
-  
-      tag(
-        ctx, "Me₁",
-        right.px(E1[0]) + 5,
-        right.py(E1[1]) - 8,
-        INK
-      );
-  
-      tag(
-        ctx, "Me₂",
-        right.px(E2[0]) + 5,
-        right.py(E2[1]) - 8,
-        RED
-      );
-  
-      ctx.restore();
+      left.clip();
+      poly(ctx,left,original,INK,1.5,[],true,WHITE);
+      X.arrow(ctx,left.px(0),left.py(0),left.px(1),left.py(0),INK,2.5,8);
+      X.arrow(ctx,left.px(0),left.py(0),left.px(0),left.py(1),RED,2.5,8);
+      tag(ctx,"e₁",left.px(1)+6,left.py(0)-8,INK);
+      tag(ctx,"e₂",left.px(0)+8,left.py(1)-4,RED);
       ctx.restore();
   
-      // Independent shoelace calculation of the signed image area.
-      var signedArea = 0;
-  
-      for (var i = 0; i < 4; i++) {
-        var p = image[i];
-        var q = image[(i + 1) % 4];
-  
-        signedArea += p[0] * q[1] - q[0] * p[1];
+      ctx.save();ctx.translate(360,10);
+      // Recompute the display scale from the transformed basis and square.
+      var right=squareFrame(ctx);
+      if(!showGrid)clearInterior(right);
+      tag(ctx,"상: M(x,y)",35,16);
+      if(showGrid){
+        for(var j=-4;j<=4;j++){
+          var s=transform(j,-4),t=transform(j,4);
+          line(ctx,right,s[0],s[1],t[0],t[1],GRID,1.1);
+          s=transform(-4,j);t=transform(4,j);
+          line(ctx,right,s[0],s[1],t[0],t[1],GRID,1.1);
+        }
       }
+      right.clip();
+      poly(ctx,right,imagePts,INK,1.7,[],true,WHITE);
+      X.arrow(ctx,right.px(0),right.py(0),right.px(E1[0]),right.py(E1[1]),INK,2.4,8);
+      X.arrow(ctx,right.px(0),right.py(0),right.px(E2[0]),right.py(E2[1]),RED,2.4,8);
+      tag(ctx,"Me₁",right.px(E1[0])+5,right.py(E1[1])-8,INK);
+      tag(ctx,"Me₂",right.px(E2[0])+5,right.py(E2[1])-8,RED);
+      ctx.restore();
   
-      signedArea /= 2;
-  
-      var area = Math.abs(signedArea);
-  
-      // Both invertibility and orientation use the same threshold.
-      var orientation = singular
-        ? "퇴화 (수치적으로 특이)"
-        : det > 0
-          ? "보존 (반시계)"
-          : "반전 (시계)";
-  
-      var inverse = singular
-        ? "역행렬 없음 (|det M| < " + fmt(DET_EPS, 1) + ")"
-        : "M⁻¹ = (1/det M) [[" +
-          fmt(d, 5) + ", " + fmt(-b, 5) +
-          "], [" +
-          fmt(-c, 5) + ", " + fmt(a, 5) +
-          "]]";
-  
-      var areaAgreement = Math.abs(signedArea - det);
-  
-      var status = singular
-        ? "행렬식의 절댓값이 허용 오차 미만입니다. " +
-          "이 위젯에서는 수치적으로 특이한 행렬로 분류합니다."
-        : "행렬식의 절댓값은 넓이 배율, 부호는 " +
-          "기준 순서 e₁→e₂의 방향 보존 여부를 나타냅니다.";
-  
-      X.setLines(box, [
-        "M = [[" + fmt(a, 5) + ", " + fmt(b, 5) +
-          "], [" + fmt(c, 5) + ", " + fmt(d, 5) + "]]",
-  
-        "Me₁ = " + txt2(E1) +
-          ", Me₂ = " + txt2(E2),
-  
-        "det M = ad − bc = " + fmt(det, 7) +
-          ", 방향: " + orientation,
-  
-        "신발끈 부호 넓이 = " + fmt(signedArea, 7) +
-          ", det M = " + fmt(det, 7),
-  
-        "실제 넓이 = " + fmt(area, 7) +
-          ", |det M| = " + fmt(Math.abs(det), 7) +
-          ", 두 부호 넓이 계산의 차이 = " +
-          fmt(areaAgreement, 10),
-  
+      var signedArea=0;
+      for(var k=0;k<4;k++){
+        var q=imagePts[k],w=imagePts[(k+1)%4];
+        signedArea+=q[0]*w[1]-w[0]*q[1];
+      }
+      signedArea/=2;
+      var area=Math.abs(signedArea);
+      var orientation=singular?"퇴화 (수치적으로 특이)":D>0?"보존 (반시계)":"반전 (시계)";
+      var inverse=singular
+        ?"역행렬 없음: |det M| < "+scientific(DET_EPS)
+        :"M⁻¹ = (1/det M) [["+
+          fmt(d,5)+", "+fmt(-b,5)+"], ["+
+          fmt(-c,5)+", "+fmt(a,5)+"]]";
+      X.setLines(box,[
+        "M = [["+fmt(a,5)+", "+fmt(b,5)+"], ["+fmt(c,5)+", "+fmt(d,5)+"]]",
+        "Me₁ = "+txt2(E1)+", Me₂ = "+txt2(E2),
+        "det M = ad − bc = "+fmt(D,9)+", 방향: "+orientation,
+        "신발끈 부호 넓이 = "+fmt(signedArea,9)+", det M = "+fmt(D,9),
+        "실제 넓이 = "+fmt(area,9)+", |det M| = "+fmt(Math.abs(D),9),
+        "부호 넓이 계산과 행렬식의 차이 = "+fmt(Math.abs(signedArea-D),12),
         inverse,
-  
-        status,
-  
-        "격자: " + (showGrid ? "표시" : "숨김") +
-          " · 특이 판정 기준: |det M| < " +
-          fmt(DET_EPS, 1)
+        singular
+          ?"|det M| < "+scientific(DET_EPS)+"이므로 이 위젯에서는 수치적으로 특이한 행렬로 분류합니다."
+          :"|det M| ≥ "+scientific(DET_EPS)+". 행렬식의 절댓값은 넓이 배율, 부호는 방향을 나타냅니다.",
+        "격자: "+(showGrid?"표시":"숨김")+" · 특이 판정 기준: |det M| < "+scientific(DET_EPS),
+        "직접 조절을 선택하면 현재 행렬을 유지한 채 네 계수를 편집합니다."
       ]);
     }
-  
     refresh();
   });
+  
 
   // ============================================================
   // 5. Dot product, projection and inequalities
