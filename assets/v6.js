@@ -91,13 +91,17 @@ register("stepthrough",function(el,cfg){
   bar.appendChild(prev);bar.appendChild(next);bar.appendChild(pos);el.appendChild(bar);
   show();
 });
-function boot(){
-  document.querySelectorAll(".v6-widget[data-widget]").forEach(function(el){
+function rescan(){
+  document.querySelectorAll(".v6-widget[data-widget]:not([data-v6-mounted])").forEach(function(el){
+    el.setAttribute("data-v6-mounted","1");
     var cfg=parse(el);if(!cfg)return;
     var fn=widgets[el.getAttribute("data-widget")];
     if(fn)try{fn(el,cfg);}catch(e){el.insertAdjacentHTML("beforeend","<div style='color:#9e2b25;font-size:12px'>widget error</div>");}
   });
 }
-window.V6={register:register,makeFn:makeFn,axes:axes,canvas:canvas,title:title,INK:INK,RED:RED,GRID:GRID};
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+var booted=false;
+function boot(){if(booted)return;booted=true;rescan();}
+window.V6={register:register,rescan:rescan,makeFn:makeFn,axes:axes,canvas:canvas,title:title,INK:INK,RED:RED,GRID:GRID};
+document.addEventListener("DOMContentLoaded",boot);
+if(document.readyState==="complete")boot();
 })();
