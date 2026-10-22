@@ -480,7 +480,9 @@ function newton1dWidget(el,cfg){
     st.preset=p;var P=NEWTON[p];
     var xr=(first&&Array.isArray(cfg.x)&&cfg.x.length===2)?[num(cfg.x[0],NaN),num(cfg.x[1],NaN)]:P.x.slice();
     if(!(xr[1]>xr[0])){msgs.push("x 범위가 잘못되어 기본값을 씁니다.");xr=P.x.slice();}
-    st.x=xr;st.y=(first&&Array.isArray(cfg.y)&&cfg.y.length===2&&num(cfg.y[1],0)>num(cfg.y[0],0))?[num(cfg.y[0]),num(cfg.y[1])]:null;
+    var y0=Array.isArray(cfg.y)?num(cfg.y[0],NaN):NaN,y1=Array.isArray(cfg.y)?num(cfg.y[1],NaN):NaN;
+    st.x=xr;st.y=(first&&y1>y0)?[y0,y1]:null;
+    if(first&&cfg.y!==undefined&&!st.y)msgs.push("y 범위가 잘못되어 자동 범위를 씁니다.");
     st.x0=first?clamp(num(cfg.x0,P.x0),xr[0],xr[1]):P.x0;
     st.step=first?Math.max(0,Math.round(num(cfg.step,0))):0;
   }
@@ -826,10 +828,12 @@ function cobwebWidget(el,cfg){
     if(!G){tag(ctx,"식을 고치면 그래프가 나타납니다.",b.x+b.w/2,b.y+b.h/2,{align:"center"});state.textContent="";pos.textContent="";return;}
     seg(ctx,FR.X(xr[0]),FR.Y(xr[0]),FR.X(xr[1]),FR.Y(xr[1]),INK,1,[4,4]);
     plotFn(ctx,FR,G,INK,2);
-    tag(ctx,"y = x",FR.X(xr[1])-4,FR.Y(xr[1])+14,{align:"right",size:11});
-    /* g label at the right end of the curve, or left if off-range */
-    var gx=xr[0]+(xr[1]-xr[0])*0.97,gy=G(gx);
-    tag(ctx,"y = g(x)",b.x+b.w-4,FR.inY(gy)?clamp(FR.Y(gy)+(gy>gx?-14:14),b.y+10,b.y+b.h-10):b.y+28,{align:"right",size:11,bold:true});
+    /* legend in the top margin instead of labels inside the plot (they collided with x₀ / cobweb) */
+    ctx.save();ctx.font="11.5px "+FONT;ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle=INK;
+    var lgY=b.y-9,lgX=b.x+b.w-ctx.measureText("y = x").width;
+    seg(ctx,lgX-30,lgY,lgX-4,lgY,INK,1,[4,4]);ctx.fillText("y = x",lgX,lgY);
+    lgX-=ctx.measureText("y = g(x)").width+44;seg(ctx,lgX-30,lgY,lgX-4,lgY,INK,2);ctx.fillText("y = g(x)",lgX,lgY);
+    ctx.restore();
     st.n=clamp(st.n,0,st.maxN);
     var n=Math.min(st.n,orb.length-1);
     /* cobweb: start at (x0,0) ↑ to (x0,g(x0)) → (x1,x1) ↑ … */
