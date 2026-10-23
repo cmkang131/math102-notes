@@ -611,12 +611,12 @@ reg("path-limit",function(el,cfg){
   var mS;
   function load(i){P=PR[i];f=compile2(P.f).fn;draw();}
   select(ctl,"함수",PR.map(function(p){return p.label;}),pi,load);
-  select(ctl,"경로",["직선 y = m x","포물선 y = k x²"],0,function(i){kind=i;draw();});
+  select(ctl,"경로",["y = m x","y = k x²"],0,function(i){kind=i;draw();});
   mS=slider(ctl,"m 또는 k",-3,3,0.1,1,function(){draw();});
   function g(t,m){return f(t,kind===0?m*t:m*t*t);}
   function pathLimit(m){var a=g(1e-5,m),b=g(-1e-5,m);var R=function(v){return Math.round(v*1e4)/1e4+0;};return {a:R(a),b:R(b)};}
   function draw(){
-    cv.clear();var m=mS.get(),T=10,B=26;
+    cv.clear();var m=mS.get(),T=38,B=26;
     var f1=frame(ctx,cv.W,cv.H,[-1,1],[-1,1],{L:36,R:cv.W-286,T:T,B:B,nx:4,ny:4});
     var f2=frame(ctx,cv.W,cv.H,[-1,1],[-1.2,1.2],{L:340,R:14,T:T,B:B,nx:5,ny:6});
     /* left: path in the plane */
@@ -625,17 +625,18 @@ reg("path-limit",function(el,cfg){
       if(i===0||Math.abs((kind===0?m*(t-0.01):m*(t-0.01)*(t-0.01))-y)>2)ctx.moveTo(f1.px(t),f1.py(y));else ctx.lineTo(f1.px(t),f1.py(y));}
     ctx.stroke();ctx.restore();
     dot(ctx,f1.px(0),f1.py(0),4.5,INK,false);
-    label(ctx,"(x, y) 평면",f1.L+4,f1.T+9,INK);label(ctx,kind===0?"y = "+fmt(m,2)+" x":"y = "+fmt(m,2)+" x²",f1.L+4,f1.T+24,RED);
+    label(ctx,"(x, y) 평면",f1.L,f1.T-26,INK);label(ctx,kind===0?"y = "+fmt(m,2)+" x":"y = "+fmt(m,2)+" x²",f1.L,f1.T-11,RED);
     /* right: g(t) along the path */
     var lim=pathLimit(m),ok=isFinite(lim.a)&&isFinite(lim.b);
     curve(ctx,f2,function(t){return Math.abs(t)<1e-9?NaN:g(t,m);},[-1,1],[-1.2,1.2],RED,2.2);
     if(ok&&Math.abs(lim.a-lim.b)<1e-3){f2.clip();ctx.strokeStyle=INK;ctx.setLineDash([5,4]);ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(f2.L,f2.py(lim.a));ctx.lineTo(f2.R,f2.py(lim.a));ctx.stroke();ctx.setLineDash([]);ctx.restore();
       label(ctx,"극한 "+fmt(lim.a,3),f2.R-6,f2.py(lim.a)-9,INK,"right");}
     dot(ctx,f2.px(0),f2.py(lim.a),4.5,INK,false);
-    label(ctx,"경로를 따라 본 f(t, y(t))",f2.L+4,f2.T+9,INK);label(ctx,"t",f2.R-6,f2.B-10,INK,"right");
-    var exact=kind===0?P.line(m):P.par(m),mm=[-2,-1,0,1,2].map(function(v){return "m="+v+": "+fmt(P.line(v),3);}).join("   ");
+    label(ctx,"경로를 따라 본 f(t, y(t))",f2.L,f2.T-11,INK);label(ctx,"t",f2.R-6,f2.B-10,INK,"right");
+    var exact=kind===0?P.line(m):P.par(m),mm=[-2,-1,0,1,2].map(function(v){return "m="+v+": "+fmt(P.line(v),3);}).join("  ·  ");
     var L=[{t:(kind===0?"직선 y = "+fmt(m,2)+"x":"포물선 y = "+fmt(m,2)+"x²")+" 를 따라 (0,0) 으로 갈 때 f → "+fmt(lim.a,5)+"  (t→0⁺),  "+fmt(lim.b,5)+"  (t→0⁻)",b:true},
-      "공식으로 구한 이 경로의 극한: "+fmt(exact,5)+"      직선들의 극한  "+mm,
+      "공식으로 구한 이 경로의 극한: "+fmt(exact,5),
+      "직선들의 극한  "+mm,
       {t:P.verdict,red:PR[pi].f!==P.f?false:false}];
     setLines(box,L);
   }
