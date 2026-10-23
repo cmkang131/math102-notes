@@ -2884,7 +2884,7 @@ reg("path-limit",function(el,cfg){
     });
     actions.style.marginTop="6px";
     var box=X.stateBox(el);
-    var INK="#1a1a1a",RED="#9e2b25",GRID="#e8e6e0";
+    var WHITE="#ffffff",INK="#1a1a1a",RED="#9e2b25",GRID="#e8e6e0";
     var a=1,b=0,c=0,d=1,locked=false,showGrid=true,DET_EPS=1e-9;
     var presets=[
       [1,0,0,1],
