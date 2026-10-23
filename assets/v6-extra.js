@@ -2917,10 +2917,10 @@ reg("path-limit",function(el,cfg){
       sa.set(a);sb.set(b);sc.set(c);sd.set(d);
       locked=false;refresh();
     });
-    var sa=X.slider(controls,"a",-3,3,0.1,a,function(v){changed(0,v);},function(v){return fmt(v,4);});
-    var sb=X.slider(controls,"b",-3,3,0.1,b,function(v){changed(1,v);},function(v){return fmt(v,4);});
-    var sc=X.slider(controls,"c",-3,3,0.1,c,function(v){changed(2,v);},function(v){return fmt(v,4);});
-    var sd=X.slider(controls,"d",-3,3,0.1,d,function(v){changed(3,v);},function(v){return fmt(v,4);});
+    var sa=X.slider(controls,"a",-4,4,0.1,a,function(v){changed(0,v);},function(v){return fmt(v,4);});
+    var sb=X.slider(controls,"b",-4,4,0.1,b,function(v){changed(1,v);},function(v){return fmt(v,4);});
+    var sc=X.slider(controls,"c",-4,4,0.1,c,function(v){changed(2,v);},function(v){return fmt(v,4);});
+    var sd=X.slider(controls,"d",-4,4,0.1,d,function(v){changed(3,v);},function(v){return fmt(v,4);});
     X.btn(actions,"격자 숨기기",function(){showGrid=false;refresh();});
     X.btn(actions,"격자 보이기",function(){showGrid=true;refresh();});
   
