@@ -3309,4 +3309,1905 @@ reg("path-limit",function(el,cfg){
     refresh();
   });
 
+
+/* ---- surface3d: 3D wireframe surface + contour panel (ChatGPT-authored engine) ---- */
+
+X.reg("surface3d", function(el, cfg) {
+  "use strict";
+
+  cfg = cfg || {};
+
+  var INK = V6.INK || "#1a1a1a";
+  var RED = V6.RED || "#9e2b25";
+  var GRID = V6.GRID || "#e8e6e0";
+  var FONT = '"Noto Sans KR", sans-serif';
+  var TAU = Math.PI * 2;
+  var PI = Math.PI;
+
+  function finite(v) {
+    return typeof v === "number" && Number.isFinite(v);
+  }
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function number(v, fallback) {
+    var n = Number(v);
+    return finite(n) ? n : fallback;
+  }
+
+  function fmt(v) {
+    if (!finite(v)) return "정의되지 않음";
+    if (Math.abs(v) < 5e-9) v = 0;
+    if (v !== 0 && (Math.abs(v) >= 10000 || Math.abs(v) < 0.0001)) {
+      return v.toExponential(2);
+    }
+    return String(Number(v.toFixed(4)));
+  }
+
+  function signed(v) {
+    return v < -5e-9
+      ? " − " + fmt(-v)
+      : " + " + fmt(Math.abs(v));
+  }
+
+  function range(raw, fallback) {
+    if (!Array.isArray(raw) || raw.length < 2) return fallback.slice();
+    var a = Number(raw[0]);
+    var b = Number(raw[1]);
+    return finite(a) && finite(b) && a < b
+      ? [a, b]
+      : fallback.slice();
+  }
+
+  function rgba(hex, opacity) {
+    var h = hex.replace("#", "");
+    if (h.length === 3) {
+      h = h.split("").map(function(c) { return c + c; }).join("");
+    }
+    var n = parseInt(h, 16);
+    if (!finite(n)) return hex;
+    return "rgba(" +
+      ((n >> 16) & 255) + "," +
+      ((n >> 8) & 255) + "," +
+      (n & 255) + "," +
+      clamp(opacity, 0, 1) + ")";
+  }
+
+  function clearNode(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // The previous instance is explicitly disposed before a remount.
+  // This also handles runtimes that clear el.innerHTML themselves.
+  if (typeof el.__surface3dCleanup === "function") {
+    el.__surface3dCleanup();
+  }
+
+  var disposed = false;
+  var cleanupFns = [];
+  var instanceRoot = null;
+  var resizeObserver = null;
+  var mutationObserver = null;
+  var rafId = 0;
+  var renderPending = false;
+  var dataPending = false;
+  var dataRafId = 0;
+
+  function listen(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    cleanupFns.push(function() {
+      target.removeEventListener(type, handler, options);
+    });
+  }
+
+  function cleanup() {
+    if (disposed) return;
+    disposed = true;
+
+    if (rafId) cancelAnimationFrame(rafId);
+    if (dataRafId) cancelAnimationFrame(dataRafId);
+
+    if (resizeObserver) resizeObserver.disconnect();
+    if (mutationObserver) mutationObserver.disconnect();
+
+    cleanupFns.forEach(function(fn) {
+      try { fn(); } catch (err) {}
+    });
+    cleanupFns.length = 0;
+
+    if (el.__surface3dCleanup === cleanup) {
+      delete el.__surface3dCleanup;
+    }
+  }
+
+  el.__surface3dCleanup = cleanup;
+
+  // ------------------------------------------------------------
+  // Configuration
+  // ------------------------------------------------------------
+
+  var xr = range(cfg.x, [-2, 2]);
+  var yr = range(cfg.y, [-2, 2]);
+  var zr = range(cfg.z, [-4, 4]);
+
+  var xmin = xr[0], xmax = xr[1];
+  var ymin = yr[0], ymax = yr[1];
+  var zmin = zr[0], zmax = zr[1];
+
+  var dx = xmax - xmin;
+  var dy = ymax - ymin;
+  var dz = zmax - zmin;
+
+  var xmid = (xmin + xmax) / 2;
+  var ymid = (ymin + ymax) / 2;
+  var zmid = (zmin + zmax) / 2;
+
+  var mesh = clamp(Math.round(number(cfg.mesh, 12)), 4, 48);
+  var mode = cfg.mode === "surface" ? "surface" : "both";
+  var showContours = mode === "both";
+
+  var initialAzim = number(cfg.view && cfg.view.azim, 0.8);
+  var initialElev = clamp(
+    number(cfg.view && cfg.view.elev, 0.55),
+    -1.35, 1.35
+  );
+
+  var azim = initialAzim;
+  var elev = initialElev;
+
+  var params = Object.create(null);
+  var paramDefs = Object.create(null);
+  var paramNames = [];
+
+  if (cfg.params && typeof cfg.params === "object") {
+    Object.keys(cfg.params).forEach(function(name) {
+      if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) return;
+      if (name === "x" || name === "y") return;
+
+      var s = cfg.params[name];
+      if (!Array.isArray(s) || s.length < 4) return;
+
+      var lo = Number(s[0]);
+      var hi = Number(s[1]);
+      var initial = Number(s[2]);
+      var step = Number(s[3]);
+
+      if (
+        !finite(lo) || !finite(hi) ||
+        !finite(initial) || !finite(step) ||
+        lo >= hi || step <= 0
+      ) return;
+
+      paramNames.push(name);
+      paramDefs[name] = {
+        min: lo,
+        max: hi,
+        step: step
+      };
+      params[name] = clamp(initial, lo, hi);
+    });
+  }
+
+  var variableNames = ["x", "y"].concat(paramNames);
+  var rawF = V6.makeFn(String(cfg.f || "0"), variableNames);
+
+  var rawG = cfg.lagrange && typeof cfg.lagrange.g === "string"
+    ? V6.makeFn(cfg.lagrange.g, variableNames)
+    : null;
+
+  var constraintLevel = cfg.lagrange
+    ? number(cfg.lagrange.level, NaN)
+    : NaN;
+
+  var hasConstraint = !!rawG && finite(constraintLevel);
+
+  function args(x, y) {
+    var values = [x, y];
+    for (var i = 0; i < paramNames.length; i++) {
+      values.push(params[paramNames[i]]);
+    }
+    return values;
+  }
+
+  function evaluate(fn, x, y) {
+    if (!fn || !finite(x) || !finite(y)) return NaN;
+    try {
+      var result = fn(args(x, y));
+      return finite(result) ? result : NaN;
+    } catch (err) {
+      return NaN;
+    }
+  }
+
+  function f(x, y) {
+    return evaluate(rawF, x, y);
+  }
+
+  function g(x, y) {
+    return evaluate(rawG, x, y);
+  }
+
+  function clippedZ(z) {
+    return finite(z) ? clamp(z, zmin, zmax) : NaN;
+  }
+
+  function outsideZ(z) {
+    return finite(z) && (z < zmin || z > zmax);
+  }
+
+  function partial(fn, x, y, axis) {
+    var span = axis === 0 ? dx : dy;
+    var h = Math.max(span * 1e-4, 1e-7);
+
+    var xp = axis === 0 ? x + h : x;
+    var yp = axis === 1 ? y + h : y;
+    var xm = axis === 0 ? x - h : x;
+    var ym = axis === 1 ? y - h : y;
+
+    var fp = evaluate(fn, xp, yp);
+    var fm = evaluate(fn, xm, ym);
+    var f0 = evaluate(fn, x, y);
+
+    if (finite(fp) && finite(fm)) {
+      return (fp - fm) / (2 * h);
+    }
+    if (finite(fp) && finite(f0)) {
+      return (fp - f0) / h;
+    }
+    if (finite(fm) && finite(f0)) {
+      return (f0 - fm) / h;
+    }
+    return NaN;
+  }
+
+  // ------------------------------------------------------------
+  // DOM
+  // ------------------------------------------------------------
+
+  V6.title(el, cfg.title || "3D 곡면");
+
+  var root = document.createElement("div");
+  instanceRoot = root;
+
+  root.style.cssText =
+    "font-family:" + FONT + ";" +
+    "color:" + INK + ";" +
+    "width:100%;" +
+    "box-sizing:border-box;";
+
+  el.appendChild(root);
+
+  var toolbar = document.createElement("div");
+  toolbar.style.cssText =
+    "display:flex;" +
+    "align-items:center;" +
+    "justify-content:space-between;" +
+    "flex-wrap:wrap;" +
+    "gap:10px 16px;" +
+    "margin:8px 0 12px;";
+
+  root.appendChild(toolbar);
+
+  var angleLabel = document.createElement("span");
+  angleLabel.style.cssText =
+    "font-size:13px;" +
+    "line-height:1.6;" +
+    "color:" + rgba(INK, 0.76) + ";" +
+    "font-variant-numeric:tabular-nums;";
+
+  toolbar.appendChild(angleLabel);
+
+  var resetButton = document.createElement("button");
+  resetButton.type = "button";
+  resetButton.textContent = "시점 초기화";
+  resetButton.style.cssText =
+    "min-height:44px;" +
+    "min-width:104px;" +
+    "padding:10px 16px;" +
+    "border:1px solid " + INK + ";" +
+    "border-radius:2px;" +
+    "background:white;" +
+    "color:" + INK + ";" +
+    "font:500 13px " + FONT + ";" +
+    "cursor:pointer;";
+
+  toolbar.appendChild(resetButton);
+
+  var controlRow = document.createElement("div");
+  controlRow.style.cssText =
+    "display:flex;" +
+    "flex-wrap:wrap;" +
+    "gap:14px 24px;" +
+    "margin-bottom:12px;";
+
+  root.appendChild(controlRow);
+
+  paramNames.forEach(function(name) {
+    var spec = paramDefs[name];
+    var holder = document.createElement("label");
+
+    holder.style.cssText =
+      "display:flex;" +
+      "flex-direction:column;" +
+      "gap:4px;" +
+      "flex:1 1 250px;" +
+      "max-width:440px;" +
+      "font-size:13px;";
+
+    var header = document.createElement("div");
+    header.style.cssText =
+      "display:flex;" +
+      "align-items:center;" +
+      "justify-content:space-between;";
+
+    var nameText = document.createElement("span");
+    nameText.textContent = name;
+
+    var valueText = document.createElement("output");
+    valueText.textContent = fmt(params[name]);
+    valueText.style.cssText =
+      "color:" + RED + ";" +
+      "font-weight:600;" +
+      "font-variant-numeric:tabular-nums;";
+
+    header.appendChild(nameText);
+    header.appendChild(valueText);
+
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = String(spec.min);
+    slider.max = String(spec.max);
+    slider.step = String(spec.step);
+    slider.value = String(params[name]);
+
+    slider.style.cssText =
+      "display:block;" +
+      "width:100%;" +
+      "height:44px;" +
+      "margin:0;" +
+      "accent-color:" + RED + ";" +
+      "cursor:pointer;" +
+      "touch-action:pan-y;";
+
+    slider.setAttribute("aria-label", name + " 매개변수");
+
+    listen(slider, "input", function() {
+      params[name] = Number(slider.value);
+      valueText.textContent = fmt(params[name]);
+      scheduleDataUpdate();
+    });
+
+    holder.appendChild(header);
+    holder.appendChild(slider);
+    controlRow.appendChild(holder);
+  });
+
+  var canvasHolder = document.createElement("div");
+  canvasHolder.style.cssText =
+    "width:100%;" +
+    "box-sizing:border-box;" +
+    "overflow:hidden;" +
+    "border:1px solid " + GRID + ";" +
+    "border-radius:2px;" +
+    "background:white;";
+
+  root.appendChild(canvasHolder);
+
+  var canvas = V6.canvas(canvasHolder, 400);
+  var ctx = canvas.getContext("2d");
+
+  canvas.style.cssText =
+    "display:block;" +
+    "width:100%;" +
+    "height:auto;" +
+    "background:white;" +
+    "touch-action:none;" +
+    "cursor:grab;" +
+    "outline-offset:3px;";
+
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute(
+    "aria-label",
+    "회전 가능한 3D 곡면. 방향키로 회전하고 Home 키로 시점을 초기화합니다."
+  );
+
+  var caption = document.createElement("div");
+  caption.style.cssText =
+    "padding:10px 2px 4px;" +
+    "font-size:13px;" +
+    "line-height:1.8;" +
+    "color:" + rgba(INK, 0.82) + ";" +
+    "white-space:pre-wrap;" +
+    "overflow-wrap:anywhere;";
+
+  root.appendChild(caption);
+
+  var accessibilityNote = document.createElement("p");
+  accessibilityNote.textContent =
+    "마우스·터치 드래그 또는 방향키로 회전할 수 있습니다. " +
+    "Home 키는 시점을 초기화합니다.";
+  accessibilityNote.style.cssText =
+    "font-size:12px;" +
+    "line-height:1.6;" +
+    "margin:4px 2px 0;" +
+    "color:" + rgba(INK, 0.68) + ";";
+
+  root.appendChild(accessibilityNote);
+
+  // ------------------------------------------------------------
+  // Canvas dimensions and responsive layout
+  // ------------------------------------------------------------
+
+  var W = 720;
+  var H = 400;
+  var dpr = 1;
+  var narrow = false;
+
+  function resizeCanvas() {
+    var rect = canvasHolder.getBoundingClientRect();
+    var width = Math.max(1, rect.width - 2);
+
+    W = width;
+    narrow = W < 450;
+
+    if (narrow && showContours) {
+      H = 510;
+    } else if (narrow) {
+      H = Math.max(280, W * 0.82);
+    } else {
+      H = Math.max(330, W * 400 / 720);
+    }
+
+    dpr = clamp(window.devicePixelRatio || 1, 1, 3);
+
+    var pixelWidth = Math.max(1, Math.round(W * dpr));
+    var pixelHeight = Math.max(1, Math.round(H * dpr));
+
+    if (
+      canvas.width !== pixelWidth ||
+      canvas.height !== pixelHeight
+    ) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+
+    ctx.setTransform(
+      pixelWidth / W, 0,
+      0, pixelHeight / H,
+      0, 0
+    );
+  }
+
+  function panels() {
+    if (!showContours) {
+      return {
+        three: { x: 0, y: 0, w: W, h: H },
+        two: null
+      };
+    }
+
+    if (narrow) {
+      return {
+        three: { x: 0, y: 0, w: W, h: 270 },
+        two: { x: 0, y: 270, w: W, h: H - 270 }
+      };
+    }
+
+    var left = W * 0.60;
+    var gap = 16;
+
+    return {
+      three: { x: 0, y: 0, w: left, h: H },
+      two: {
+        x: left + gap,
+        y: 0,
+        w: W - left - gap,
+        h: H
+      }
+    };
+  }
+
+  // ------------------------------------------------------------
+  // Drawing helpers
+  // ------------------------------------------------------------
+
+  function line(a, b, color, width, alpha, dashed) {
+    if (!a || !b) return;
+
+    ctx.save();
+    ctx.strokeStyle = color || INK;
+    ctx.lineWidth = width || 1;
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+
+    if (dashed) ctx.setLineDash([4, 4]);
+
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function dot(p, color, radius) {
+    if (!p) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (radius || 4) + 1.5, 0, TAU);
+    ctx.fillStyle = "white";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius || 4, 0, TAU);
+    ctx.fillStyle = color || RED;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function textAt(value, x, y, options) {
+    options = options || {};
+
+    ctx.save();
+    ctx.fillStyle = options.color || INK;
+    ctx.font =
+      (options.weight || 400) + " " +
+      (options.size || 12) + "px " + FONT;
+    ctx.textAlign = options.align || "left";
+    ctx.textBaseline = options.baseline || "middle";
+    ctx.fillText(String(value), x, y);
+    ctx.restore();
+  }
+
+  function projection(panel) {
+    var ca = Math.cos(azim);
+    var sa = Math.sin(azim);
+    var ce = Math.cos(elev);
+    var se = Math.sin(elev);
+
+    var scale = Math.min(panel.w, panel.h) * 0.37;
+    var cx = panel.x + panel.w / 2;
+    var cy = panel.y + panel.h * 0.53;
+
+    return function(x, y, z) {
+      if (!finite(x) || !finite(y) || !finite(z)) return null;
+
+      var X = 2 * (x - xmid) / dx;
+      var Y = 2 * (y - ymid) / dy;
+      var Z = 2 * (z - zmid) / dz;
+
+      var horizontal = ca * X - sa * Y;
+      var depth = sa * X + ca * Y;
+      var vertical = se * depth - ce * Z;
+
+      return {
+        x: cx + horizontal * scale,
+        y: cy + vertical * scale,
+        depth: ce * depth + se * Z
+      };
+    };
+  }
+
+  // ------------------------------------------------------------
+  // Numerical sampling and discontinuity detection
+  // ------------------------------------------------------------
+
+  var surfaceGrid = [];
+  var contours = [];
+  var constraintSegments = [];
+  var constraintComponents = [];
+  var extrema = null;
+  var tangent = null;
+  var stats = {
+    clipped: false,
+    invalid: false,
+    uncertain: false
+  };
+
+  var CONTOUR_N = 120;
+  var CONSTRAINT_N = 192;
+
+  function sampleGrid(fn, nx, ny) {
+    var values = [];
+
+    for (var j = 0; j <= ny; j++) {
+      var row = [];
+      var y = ymin + dy * j / ny;
+
+      for (var i = 0; i <= nx; i++) {
+        var x = xmin + dx * i / nx;
+        row.push(evaluate(fn, x, y));
+      }
+
+      values.push(row);
+    }
+
+    return values;
+  }
+
+  function interpolate(a, b, va, vb, level) {
+    var denominator = vb - va;
+    var t = Math.abs(denominator) < 1e-15
+      ? 0.5
+      : clamp((level - va) / denominator, 0, 1);
+
+    return {
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t
+    };
+  }
+
+  function marchingSquares(values, nx, ny, level, fn) {
+    var segments = [];
+
+    function crosses(a, b) {
+      return (a < level && b >= level) ||
+             (a >= level && b < level);
+    }
+
+    for (var j = 0; j < ny; j++) {
+      var y0 = ymin + dy * j / ny;
+      var y1 = ymin + dy * (j + 1) / ny;
+
+      for (var i = 0; i < nx; i++) {
+        var x0 = xmin + dx * i / nx;
+        var x1 = xmin + dx * (i + 1) / nx;
+
+        var vs = [
+          values[j][i],
+          values[j][i + 1],
+          values[j + 1][i + 1],
+          values[j + 1][i]
+        ];
+
+        if (!vs.every(finite)) continue;
+
+        var ps = [
+          { x: x0, y: y0 },
+          { x: x1, y: y0 },
+          { x: x1, y: y1 },
+          { x: x0, y: y1 }
+        ];
+
+        var hits = [];
+
+        for (var e = 0; e < 4; e++) {
+          var n = (e + 1) % 4;
+
+          if (crosses(vs[e], vs[n])) {
+            hits.push({
+              edge: e,
+              point: interpolate(
+                ps[e], ps[n], vs[e], vs[n], level
+              )
+            });
+          }
+        }
+
+        if (hits.length === 2) {
+          segments.push([
+            hits[0].point,
+            hits[1].point
+          ]);
+        } else if (hits.length === 4) {
+          // Evaluate the actual center rather than averaging corners.
+          var center = evaluate(
+            fn,
+            (x0 + x1) / 2,
+            (y0 + y1) / 2
+          );
+
+          if (!finite(center)) continue;
+
+          var same = (center >= level) === (vs[0] >= level);
+
+          var pairs = same
+            ? [[0, 1], [2, 3]]
+            : [[0, 3], [1, 2]];
+
+          pairs.forEach(function(pair) {
+            segments.push([
+              hits[pair[0]].point,
+              hits[pair[1]].point
+            ]);
+          });
+        }
+      }
+    }
+
+    return segments;
+  }
+
+  // An endpoint-valid line is not automatically continuous.
+  // Check intermediate values and reject obvious singular jumps.
+  function safeSegment(fn, a, b, va, vb, tolerance) {
+    if (!finite(va) || !finite(vb)) return false;
+
+    var tvals = [0.25, 0.5, 0.75];
+    var previous = va;
+    var values = [va];
+
+    for (var i = 0; i < tvals.length; i++) {
+      var t = tvals[i];
+      var x = a.x + (b.x - a.x) * t;
+      var y = a.y + (b.y - a.y) * t;
+      var v = evaluate(fn, x, y);
+
+      if (!finite(v)) return false;
+      values.push(v);
+    }
+
+    values.push(vb);
+
+    var bound = Math.max(
+      Math.abs(tolerance),
+      Math.abs(va) * 3,
+      Math.abs(vb) * 3,
+      1
+    );
+
+    for (var k = 1; k < values.length; k++) {
+      if (Math.abs(values[k] - values[k - 1]) > bound) {
+        return false;
+      }
+      previous = values[k];
+    }
+
+    // This heuristic cannot certify mathematical continuity.
+    return true;
+  }
+
+  // ------------------------------------------------------------
+  // Constraint refinement
+  // ------------------------------------------------------------
+
+  function refineConstraintPoint(p) {
+    var x = p.x;
+    var y = p.y;
+
+    for (var k = 0; k < 10; k++) {
+      var residual = g(x, y) - constraintLevel;
+      var gx = partial(rawG, x, y, 0);
+      var gy = partial(rawG, x, y, 1);
+
+      if (
+        !finite(residual) ||
+        !finite(gx) ||
+        !finite(gy)
+      ) break;
+
+      var norm = gx * gx + gy * gy;
+      if (norm < 1e-18) break;
+
+      var factor = residual / norm;
+
+      // Damped projection, bounded by the local grid scale.
+      var limit = Math.min(dx, dy) / 20;
+      var sx = factor * gx;
+      var sy = factor * gy;
+      var length = Math.hypot(sx, sy);
+
+      if (length > limit) {
+        sx *= limit / length;
+        sy *= limit / length;
+      }
+
+      var nx = clamp(x - sx, xmin, xmax);
+      var ny = clamp(y - sy, ymin, ymax);
+
+      if (Math.hypot(nx - x, ny - y) < 1e-12) {
+        x = nx;
+        y = ny;
+        break;
+      }
+
+      x = nx;
+      y = ny;
+    }
+
+    return { x: x, y: y };
+  }
+
+  function residualOK(p) {
+    var value = g(p.x, p.y);
+    var gx = partial(rawG, p.x, p.y, 0);
+    var gy = partial(rawG, p.x, p.y, 1);
+
+    if (!finite(value) || !finite(gx) || !finite(gy)) {
+      return false;
+    }
+
+    var scale = Math.max(1, Math.abs(constraintLevel));
+    return Math.abs(value - constraintLevel) <= 1e-5 * scale;
+  }
+
+  function pointDistance(a, b) {
+    return Math.hypot(
+      (a.x - b.x) / dx,
+      (a.y - b.y) / dy
+    );
+  }
+
+  function connectSegments(segments) {
+    var tolerance = 2 / CONSTRAINT_N * 0.12;
+    var chains = [];
+    var remaining = segments.map(function(s) {
+      return [s[0], s[1]];
+    });
+
+    while (remaining.length) {
+      var chain = remaining.pop().slice();
+      var changed = true;
+
+      while (changed) {
+        changed = false;
+
+        for (var i = remaining.length - 1; i >= 0; i--) {
+          var s = remaining[i];
+          var first = chain[0];
+          var last = chain[chain.length - 1];
+
+          if (pointDistance(last, s[0]) < tolerance) {
+            chain.push(s[1]);
+          } else if (pointDistance(last, s[1]) < tolerance) {
+            chain.push(s[0]);
+          } else if (pointDistance(first, s[1]) < tolerance) {
+            chain.unshift(s[0]);
+          } else if (pointDistance(first, s[0]) < tolerance) {
+            chain.unshift(s[1]);
+          } else {
+            continue;
+          }
+
+          remaining.splice(i, 1);
+          changed = true;
+        }
+      }
+
+      chains.push(chain);
+    }
+
+    return chains;
+  }
+
+  function interpolatePath(a, b, t) {
+    return refineConstraintPoint({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t
+    });
+  }
+
+  function optimizeSegment(a, b, maximize) {
+    // Golden-section refinement along a locally projected segment.
+    // This is a numerical refinement, not a global-optimality proof.
+    var left = 0;
+    var right = 1;
+    var ratio = (Math.sqrt(5) - 1) / 2;
+
+    function objective(t) {
+      var p = interpolatePath(a, b, t);
+      if (!residualOK(p)) return Infinity;
+
+      var value = f(p.x, p.y);
+      if (!finite(value)) return Infinity;
+
+      return maximize ? -value : value;
+    }
+
+    var c = right - ratio * (right - left);
+    var d = left + ratio * (right - left);
+    var fc = objective(c);
+    var fd = objective(d);
+
+    for (var k = 0; k < 28; k++) {
+      if (fc <= fd) {
+        right = d;
+        d = c;
+        fd = fc;
+        c = right - ratio * (right - left);
+        fc = objective(c);
+      } else {
+        left = c;
+        c = d;
+        fc = fd;
+        d = left + ratio * (right - left);
+        fd = objective(d);
+      }
+    }
+
+    var p = interpolatePath(a, b, (left + right) / 2);
+
+    if (!residualOK(p)) return null;
+
+    var z = f(p.x, p.y);
+    if (!finite(z)) return null;
+
+    return { x: p.x, y: p.y, z: z };
+  }
+
+  function computeConstraint() {
+    constraintSegments = [];
+    constraintComponents = [];
+    extrema = null;
+
+    if (!hasConstraint) return;
+
+    var data = sampleGrid(rawG, CONSTRAINT_N, CONSTRAINT_N);
+    var raw = marchingSquares(
+      data,
+      CONSTRAINT_N,
+      CONSTRAINT_N,
+      constraintLevel,
+      rawG
+    );
+
+    raw.forEach(function(s) {
+      var a = refineConstraintPoint(s[0]);
+      var b = refineConstraintPoint(s[1]);
+
+      if (!residualOK(a) || !residualOK(b)) return;
+
+      var ga = g(a.x, a.y);
+      var gb = g(b.x, b.y);
+      var midpoint = {
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2
+      };
+
+      if (!safeSegment(rawG, a, b, ga, gb, Math.max(dx, dy))) {
+        stats.uncertain = true;
+        return;
+      }
+
+      var gm = g(midpoint.x, midpoint.y);
+      if (!finite(gm)) {
+        stats.uncertain = true;
+        return;
+      }
+
+      constraintSegments.push([a, b]);
+    });
+
+    constraintComponents = connectSegments(constraintSegments);
+
+    var candidates = [];
+
+    constraintSegments.forEach(function(s) {
+      [s[0], s[1]].forEach(function(p) {
+        if (!residualOK(p)) return;
+        var z = f(p.x, p.y);
+        if (finite(z)) {
+          candidates.push({ x: p.x, y: p.y, z: z });
+        }
+      });
+
+      var minimum = optimizeSegment(s[0], s[1], false);
+      var maximum = optimizeSegment(s[0], s[1], true);
+
+      if (minimum) candidates.push(minimum);
+      if (maximum) candidates.push(maximum);
+    });
+
+    // Additional samples along the connected components.
+    constraintComponents.forEach(function(chain) {
+      for (var i = 0; i + 1 < chain.length; i++) {
+        var a = chain[i];
+        var b = chain[i + 1];
+
+        [0.25, 0.5, 0.75].forEach(function(t) {
+          var p = interpolatePath(a, b, t);
+          if (!residualOK(p)) return;
+
+          var z = f(p.x, p.y);
+          if (finite(z)) {
+            candidates.push({ x: p.x, y: p.y, z: z });
+          }
+        });
+      }
+    });
+
+    if (!candidates.length) return;
+
+    var minimum = candidates[0];
+    var maximum = candidates[0];
+
+    candidates.forEach(function(p) {
+      if (p.z < minimum.z) minimum = p;
+      if (p.z > maximum.z) maximum = p;
+    });
+
+    extrema = {
+      min: minimum,
+      max: maximum,
+      approximate: true
+    };
+  }
+
+  // ------------------------------------------------------------
+  // Surface, contours and tangent
+  // ------------------------------------------------------------
+
+  function computeContours() {
+    contours = [];
+    if (!showContours) return;
+
+    var data = sampleGrid(rawF, CONTOUR_N, CONTOUR_N);
+
+    for (var i = 1; i <= 9; i++) {
+      var level = zmin + dz * i / 10;
+
+      contours.push({
+        level: level,
+        segments: marchingSquares(
+          data,
+          CONTOUR_N,
+          CONTOUR_N,
+          level,
+          rawF
+        )
+      });
+    }
+  }
+
+  function computeTangent() {
+    tangent = null;
+    if (!cfg.plane) return;
+
+    var x0 = Number(cfg.plane.x0);
+    var y0 = Number(cfg.plane.y0);
+
+    if (!finite(x0) || !finite(y0)) return;
+
+    var z0 = f(x0, y0);
+    var fx = partial(rawF, x0, y0, 0);
+    var fy = partial(rawF, x0, y0, 1);
+
+    if (
+      !finite(z0) ||
+      !finite(fx) ||
+      !finite(fy)
+    ) return;
+
+    tangent = {
+      x: x0,
+      y: y0,
+      z: z0,
+      fx: fx,
+      fy: fy
+    };
+  }
+
+  function tangentZ(x, y) {
+    return tangent.z +
+      tangent.fx * (x - tangent.x) +
+      tangent.fy * (y - tangent.y);
+  }
+
+  function computeSurface() {
+    surfaceGrid = sampleGrid(rawF, mesh, mesh);
+
+    for (var j = 0; j <= mesh; j++) {
+      for (var i = 0; i <= mesh; i++) {
+        var z = surfaceGrid[j][i];
+
+        if (!finite(z)) stats.invalid = true;
+        if (outsideZ(z)) stats.clipped = true;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Drawing: 3D
+  // ------------------------------------------------------------
+
+  function drawAxes(project) {
+    var axes = [
+      {
+        a: [xmin, ymin, zmin],
+        b: [xmax, ymin, zmin],
+        label: "x"
+      },
+      {
+        a: [xmin, ymin, zmin],
+        b: [xmin, ymax, zmin],
+        label: "y"
+      },
+      {
+        a: [xmin, ymin, zmin],
+        b: [xmin, ymin, zmax],
+        label: "z"
+      }
+    ];
+
+    axes.forEach(function(axis) {
+      var a = project.apply(null, axis.a);
+      var b = project.apply(null, axis.b);
+
+      line(a, b, rgba(INK, 0.45), 1);
+
+      if (b) {
+        textAt(axis.label, b.x + 6, b.y - 8, {
+          size: 13,
+          color: rgba(INK, 0.75)
+        });
+      }
+    });
+
+    var corners = [
+      [xmin, ymin],
+      [xmax, ymin],
+      [xmax, ymax],
+      [xmin, ymax]
+    ];
+
+    for (var i = 0; i < 4; i++) {
+      var a = corners[i];
+      var b = corners[(i + 1) % 4];
+
+      line(
+        project(a[0], a[1], zmin),
+        project(b[0], b[1], zmin),
+        GRID,
+        1
+      );
+    }
+  }
+
+  function drawSurface(project) {
+    var segments = [];
+
+    function append(a, b, va, vb) {
+      if (!a || !b || !finite(va) || !finite(vb)) return;
+
+      var pa = project(a.x, a.y, clippedZ(va));
+      var pb = project(b.x, b.y, clippedZ(vb));
+
+      if (!pa || !pb) return;
+
+      segments.push({
+        a: pa,
+        b: pb,
+        depth: (pa.depth + pb.depth) / 2,
+        clipped: outsideZ(va) || outsideZ(vb)
+      });
+    }
+
+    for (var j = 0; j <= mesh; j++) {
+      for (var i = 0; i <= mesh; i++) {
+        var x = xmin + dx * i / mesh;
+        var y = ymin + dy * j / mesh;
+        var z = surfaceGrid[j][i];
+
+        var p = { x: x, y: y };
+
+        if (i < mesh) {
+          var nx = xmin + dx * (i + 1) / mesh;
+          var nz = surfaceGrid[j][i + 1];
+          var qx = { x: nx, y: y };
+
+          if (safeSegment(rawF, p, qx, z, nz, dz * 2)) {
+            append(p, qx, z, nz);
+          } else {
+            stats.uncertain = true;
+          }
+        }
+
+        if (j < mesh) {
+          var ny = ymin + dy * (j + 1) / mesh;
+          var nz2 = surfaceGrid[j + 1][i];
+          var qy = { x: x, y: ny };
+
+          if (safeSegment(rawF, p, qy, z, nz2, dz * 2)) {
+            append(p, qy, z, nz2);
+          } else {
+            stats.uncertain = true;
+          }
+        }
+      }
+    }
+
+    segments.sort(function(a, b) {
+      return b.depth - a.depth;
+    });
+
+    segments.forEach(function(s) {
+      line(
+        s.a,
+        s.b,
+        INK,
+        s.clipped ? 1.1 : 0.9,
+        s.clipped ? 0.38 : 0.72,
+        s.clipped
+      );
+    });
+  }
+
+  function drawTangent(project) {
+    if (!tangent) return;
+
+    var sx = dx * 0.19;
+    var sy = dy * 0.19;
+    var n = 5;
+
+    function point(u, v) {
+      var x = tangent.x + u * sx;
+      var y = tangent.y + v * sy;
+
+      return project(x, y, clippedZ(tangentZ(x, y)));
+    }
+
+    for (var i = 0; i <= n; i++) {
+      var t = -1 + 2 * i / n;
+
+      line(point(t, -1), point(t, 1), RED, 1.7, 0.9);
+      line(point(-1, t), point(1, t), RED, 1.7, 0.9);
+    }
+
+    var center = project(
+      tangent.x,
+      tangent.y,
+      clippedZ(tangent.z)
+    );
+
+    dot(center, RED, 5);
+
+    if (center) {
+      textAt("접점", center.x + 8, center.y - 12, {
+        color: RED,
+        size: 13,
+        weight: 600
+      });
+    }
+  }
+
+  function drawConstraint3D(project) {
+    if (!hasConstraint) return;
+
+    constraintSegments.forEach(function(s) {
+      var a = s[0];
+      var b = s[1];
+      var za = f(a.x, a.y);
+      var zb = f(b.x, b.y);
+
+      if (!finite(za) || !finite(zb)) return;
+
+      line(
+        project(a.x, a.y, clippedZ(za)),
+        project(b.x, b.y, clippedZ(zb)),
+        RED,
+        2.5,
+        1,
+        outsideZ(za) || outsideZ(zb)
+      );
+    });
+
+    if (!extrema) return;
+
+    [
+      { p: extrema.max, label: "최대" },
+      { p: extrema.min, label: "최소" }
+    ].forEach(function(item) {
+      var p = project(
+        item.p.x,
+        item.p.y,
+        clippedZ(item.p.z)
+      );
+
+      dot(p, RED, 5);
+
+      if (p) {
+        textAt(item.label, p.x + 8, p.y - 12, {
+          color: RED,
+          size: 13,
+          weight: 600
+        });
+      }
+    });
+  }
+
+  function drawThree(panel) {
+    var project = projection(panel);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(panel.x, panel.y, panel.w, panel.h);
+    ctx.clip();
+
+    drawAxes(project);
+    drawSurface(project);
+    drawTangent(project);
+    drawConstraint3D(project);
+
+    textAt("3D 곡면", panel.x + 12, panel.y + 18, {
+      color: rgba(INK, 0.7),
+      size: 13
+    });
+
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------
+  // Drawing: 2D contours
+  // ------------------------------------------------------------
+
+  function contourMap(panel) {
+    var leftPad = 44;
+    var rightPad = 17;
+    var topPad = 38;
+    var bottomPad = 42;
+
+    var availableW = Math.max(
+      20,
+      panel.w - leftPad - rightPad
+    );
+
+    var availableH = Math.max(
+      20,
+      panel.h - topPad - bottomPad
+    );
+
+    var pw = Math.min(availableW, availableH * dx / dy);
+    var ph = pw * dy / dx;
+
+    if (ph > availableH) {
+      ph = availableH;
+      pw = ph * dx / dy;
+    }
+
+    var left =
+      panel.x + leftPad + (availableW - pw) / 2;
+
+    var top =
+      panel.y + topPad + (availableH - ph) / 2;
+
+    return {
+      left: left,
+      top: top,
+      width: pw,
+      height: ph,
+      map: function(x, y) {
+        return {
+          x: left + (x - xmin) / dx * pw,
+          y: top + (ymax - y) / dy * ph
+        };
+      }
+    };
+  }
+
+  function drawContours(panel) {
+    if (!panel) return;
+
+    var info = contourMap(panel);
+    var map = info.map;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(panel.x, panel.y, panel.w, panel.h);
+    ctx.clip();
+
+    textAt("등고선 · xy 평면", panel.x + 12, panel.y + 18, {
+      color: rgba(INK, 0.7),
+      size: 13
+    });
+
+    ctx.strokeStyle = rgba(INK, 0.5);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      info.left,
+      info.top,
+      info.width,
+      info.height
+    );
+
+    for (var i = 1; i < 4; i++) {
+      var x = xmin + dx * i / 4;
+      var y = ymin + dy * i / 4;
+
+      line(map(x, ymin), map(x, ymax), GRID, 1);
+      line(map(xmin, y), map(xmax, y), GRID, 1);
+    }
+
+    if (xmin <= 0 && xmax >= 0) {
+      line(
+        map(0, ymin),
+        map(0, ymax),
+        rgba(INK, 0.38),
+        1
+      );
+    }
+
+    if (ymin <= 0 && ymax >= 0) {
+      line(
+        map(xmin, 0),
+        map(xmax, 0),
+        rgba(INK, 0.38),
+        1
+      );
+    }
+
+    contours.forEach(function(contour) {
+      contour.segments.forEach(function(s) {
+        var a = s[0], b = s[1];
+
+        // Suppress clearly discontinuous contour connections.
+        var va = f(a.x, a.y);
+        var vb = f(b.x, b.y);
+
+        if (!safeSegment(rawF, a, b, va, vb, dz * 2)) {
+          return;
+        }
+
+        line(
+          map(a.x, a.y),
+          map(b.x, b.y),
+          INK,
+          1,
+          0.72
+        );
+      });
+    });
+
+    if (hasConstraint) {
+      constraintSegments.forEach(function(s) {
+        line(
+          map(s[0].x, s[0].y),
+          map(s[1].x, s[1].y),
+          RED,
+          2.5
+        );
+      });
+
+      if (extrema) {
+        var maxP = map(extrema.max.x, extrema.max.y);
+        var minP = map(extrema.min.x, extrema.min.y);
+
+        dot(maxP, RED, 5);
+        dot(minP, RED, 5);
+
+        textAt("최대", maxP.x + 8, maxP.y - 11, {
+          color: RED,
+          weight: 600,
+          size: 12
+        });
+
+        textAt("최소", minP.x + 8, minP.y + 13, {
+          color: RED,
+          weight: 600,
+          size: 12
+        });
+      }
+    }
+
+    if (tangent) {
+      dot(map(tangent.x, tangent.y), RED, 5);
+    }
+
+    textAt(fmt(xmin), info.left,
+      info.top + info.height + 19, {
+        color: rgba(INK, 0.75),
+        size: 12
+      }
+    );
+
+    textAt(fmt(xmax), info.left + info.width,
+      info.top + info.height + 19, {
+        color: rgba(INK, 0.75),
+        size: 12,
+        align: "right"
+      }
+    );
+
+    textAt(fmt(ymin), info.left - 7,
+      info.top + info.height, {
+        color: rgba(INK, 0.75),
+        size: 12,
+        align: "right"
+      }
+    );
+
+    textAt(fmt(ymax), info.left - 7,
+      info.top, {
+        color: rgba(INK, 0.75),
+        size: 12,
+        align: "right"
+      }
+    );
+
+    textAt("x", info.left + info.width,
+      info.top + info.height + 36, {
+        align: "right",
+        size: 13
+      }
+    );
+
+    textAt("y", info.left - 17,
+      info.top - 13, {
+        size: 13
+      }
+    );
+
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------
+  // Captions
+  // ------------------------------------------------------------
+
+  function updateCaption() {
+    var lines = [];
+
+    if (tangent) {
+      lines.push(
+        "접점: (" +
+        fmt(tangent.x) + ", " +
+        fmt(tangent.y) + ", " +
+        fmt(tangent.z) + ")"
+      );
+
+      lines.push(
+        "f(" + fmt(tangent.x) + ", " +
+        fmt(tangent.y) + ") = " + fmt(tangent.z)
+      );
+
+      lines.push(
+        "∇f = (" +
+        fmt(tangent.fx) + ", " +
+        fmt(tangent.fy) + ")"
+      );
+
+      lines.push(
+        "접평면: z = " +
+        fmt(tangent.z) +
+        signed(tangent.fx) +
+        "(x − (" + fmt(tangent.x) + "))" +
+        signed(tangent.fy) +
+        "(y − (" + fmt(tangent.y) + "))"
+      );
+
+      lines.push(
+        "접평면은 접점에서 곡면의 일차 근사입니다."
+      );
+    } else if (cfg.plane) {
+      lines.push(
+        "접평면 계산 불가: 접점의 함수값 또는 편미분이 유효하지 않습니다."
+      );
+    }
+
+    if (hasConstraint) {
+      lines.push(
+        "제약조건: g(x,y) = " + fmt(constraintLevel)
+      );
+
+      if (extrema) {
+        lines.push(
+          "수치 최대 ≈ " + fmt(extrema.max.z) +
+          " at (" +
+          fmt(extrema.max.x) + ", " +
+          fmt(extrema.max.y) + ")"
+        );
+
+        lines.push(
+          "수치 최소 ≈ " + fmt(extrema.min.z) +
+          " at (" +
+          fmt(extrema.min.x) + ", " +
+          fmt(extrema.min.y) + ")"
+        );
+
+        lines.push(
+          "격자 추출 후 제약곡선 투영과 국소 수치 정밀화를 적용한 근사값입니다. " +
+          "표시 범위의 모든 극값 또는 전역 최적성을 보장하지 않습니다."
+        );
+      } else {
+        lines.push(
+          "표시 범위에서 유효한 제약곡선 극값 후보를 찾지 못했습니다."
+        );
+      }
+
+      lines.push(
+        "Lagrange 직관: 정칙 제약점의 국소 극값에서는 " +
+        "∇f = λ∇g, 즉 두 기울기가 평행합니다."
+      );
+    }
+
+    if (paramNames.length) {
+      lines.push(
+        paramNames.map(function(name) {
+          return name + " = " + fmt(params[name]);
+        }).join(" · ")
+      );
+
+      lines.push(
+        "매개변수 변화에 따라 곡면과 등고선을 다시 계산합니다."
+      );
+    }
+
+    if (stats.clipped) {
+      lines.push(
+        "주의: z 표시 범위를 벗어난 부분은 경계 높이로 잘라 " +
+        "연한 점선으로 표시합니다. 실제 곡면이 평탄한 것은 아닙니다."
+      );
+    }
+
+    if (stats.invalid || stats.uncertain) {
+      lines.push(
+        "주의: 정의되지 않은 값이나 급격한 변화가 감지된 " +
+        "격자 선분은 생략할 수 있습니다. " +
+        "이는 불연속성에 대한 수치적 추정이며 엄밀한 판정은 아닙니다."
+      );
+    }
+
+    if (showContours) {
+      lines.push(
+        "검은 선: 곡면·등고선 · 빨간 선: 접평면 또는 제약곡선"
+      );
+    }
+
+    lines.push(
+      "z 표시 범위: [" + fmt(zmin) + ", " + fmt(zmax) + "]"
+    );
+
+    caption.textContent = lines.join("\n");
+  }
+
+  // ------------------------------------------------------------
+  // Render scheduling
+  // ------------------------------------------------------------
+
+  function paint() {
+    if (disposed || !el.isConnected || !root.isConnected) return;
+
+    resizeCanvas();
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, W, H);
+
+    var layout = panels();
+
+    drawThree(layout.three);
+
+    if (layout.two) {
+      if (narrow) {
+        line(
+          { x: 12, y: layout.two.y },
+          { x: W - 12, y: layout.two.y },
+          GRID, 1
+        );
+      } else {
+        var dividerX = layout.two.x - 8;
+        line(
+          { x: dividerX, y: 14 },
+          { x: dividerX, y: H - 14 },
+          GRID, 1
+        );
+      }
+
+      drawContours(layout.two);
+    }
+
+    angleLabel.textContent =
+      "방위각 " + fmt(azim * 180 / PI) +
+      "° · 고도각 " + fmt(elev * 180 / PI) + "°";
+
+    updateCaption();
+  }
+
+  function render() {
+    if (disposed || renderPending) return;
+
+    renderPending = true;
+    rafId = requestAnimationFrame(function() {
+      rafId = 0;
+      renderPending = false;
+      paint();
+    });
+  }
+
+  function updateData() {
+    if (disposed) return;
+
+    stats = {
+      clipped: false,
+      invalid: false,
+      uncertain: false
+    };
+
+    computeSurface();
+    computeContours();
+    computeConstraint();
+    computeTangent();
+
+    updateCaption();
+    render();
+  }
+
+  function scheduleDataUpdate() {
+    if (disposed || dataPending) return;
+
+    dataPending = true;
+    dataRafId = requestAnimationFrame(function() {
+      dataRafId = 0;
+      dataPending = false;
+      updateData();
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Pointer rotation
+  // ------------------------------------------------------------
+
+  var dragging = false;
+  var pointerId = null;
+  var lastX = 0;
+  var lastY = 0;
+
+  function resetView() {
+    azim = initialAzim;
+    elev = initialElev;
+    render();
+  }
+
+  listen(resetButton, "click", resetView);
+
+  listen(canvas, "pointerdown", function(e) {
+    if (dragging) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    // Rotate only on the 3D panel, leaving the contour panel
+    // noninteractive for touch scrolling.
+    var rect = canvas.getBoundingClientRect();
+    var px = (e.clientX - rect.left) * W / rect.width;
+    var py = (e.clientY - rect.top) * H / rect.height;
+    var three = panels().three;
+
+    if (
+      px < three.x || px > three.x + three.w ||
+      py < three.y || py > three.y + three.h
+    ) return;
+
+    dragging = true;
+    pointerId = e.pointerId;
+    lastX = e.clientX;
+    lastY = e.clientY;
+
+    canvas.style.cursor = "grabbing";
+
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (err) {}
+
+    e.preventDefault();
+  });
+
+  listen(canvas, "pointermove", function(e) {
+    if (!dragging || e.pointerId !== pointerId) return;
+
+    var deltaX = e.clientX - lastX;
+    var deltaY = e.clientY - lastY;
+
+    lastX = e.clientX;
+    lastY = e.clientY;
+
+    azim += deltaX * 0.008;
+    elev = clamp(
+      elev + deltaY * 0.008,
+      -1.35, 1.35
+    );
+
+    azim = ((azim + PI) % TAU + TAU) % TAU - PI;
+
+    render();
+    e.preventDefault();
+  });
+
+  function finishPointer(e) {
+    if (!dragging || e.pointerId !== pointerId) return;
+
+    dragging = false;
+    pointerId = null;
+    canvas.style.cursor = "grab";
+
+    try {
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+    } catch (err) {}
+  }
+
+  listen(canvas, "pointerup", finishPointer);
+  listen(canvas, "pointercancel", finishPointer);
+
+  listen(canvas, "lostpointercapture", function(e) {
+    if (e.pointerId === pointerId) {
+      dragging = false;
+      pointerId = null;
+      canvas.style.cursor = "grab";
+    }
+  });
+
+  // ------------------------------------------------------------
+  // Keyboard rotation
+  // ------------------------------------------------------------
+
+  listen(canvas, "keydown", function(e) {
+    var step = e.shiftKey ? 0.20 : 0.07;
+    var handled = true;
+
+    switch (e.key) {
+      case "ArrowLeft":
+        azim -= step;
+        break;
+
+      case "ArrowRight":
+        azim += step;
+        break;
+
+      case "ArrowUp":
+        elev = clamp(elev - step, -1.35, 1.35);
+        break;
+
+      case "ArrowDown":
+        elev = clamp(elev + step, -1.35, 1.35);
+        break;
+
+      case "Home":
+        azim = initialAzim;
+        elev = initialElev;
+        break;
+
+      default:
+        handled = false;
+    }
+
+    if (handled) {
+      e.preventDefault();
+      render();
+    }
+  });
+
+  // ------------------------------------------------------------
+  // Lifecycle and remount cleanup
+  // ------------------------------------------------------------
+
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(function() {
+      if (!disposed) render();
+    });
+
+    resizeObserver.observe(canvasHolder);
+  } else {
+    listen(window, "resize", render);
+  }
+
+  if (typeof MutationObserver !== "undefined") {
+    mutationObserver = new MutationObserver(function() {
+      if (disposed) return;
+
+      // Detect both removal of el and el.innerHTML replacement.
+      if (!el.isConnected || !root.isConnected) {
+        cleanup();
+      }
+    });
+
+    mutationObserver.observe(el, {
+      childList: true,
+      subtree: false
+    });
+
+    if (el.parentNode) {
+      mutationObserver.observe(el.parentNode, {
+        childList: true,
+        subtree: false
+      });
+    }
+  }
+
+  updateData();
+});
+
 })();
