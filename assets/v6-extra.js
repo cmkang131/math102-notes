@@ -274,7 +274,7 @@ reg("plot-fn",function(el,cfg){
   btn(rng,"처음으로",function(){xr[0]=x0[0];xr[1]=x0[1];yr[0]=y0[0];yr[1]=y0[1];syncFields();draw();});
   el.appendChild(errs);
   var note=h("div");note.style.cssText="font-size:12px;color:#555;margin-top:4px";
-  note.textContent="사용 가능: + - * / ^ ( ), 2x 같은 곱, sin cos tan asin acos atan sinh cosh tanh exp ln log sqrt cbrt abs floor sign pow(a,b) min max, pi, e. 드래그로 이동, 점선 위에 마우스를 올리면 값.";
+  note.textContent="사용 가능: + - * / ^ ( ), 2x 같은 곱, sin cos tan asin acos atan sinh cosh tanh exp ln log sqrt cbrt abs floor sign pow(a,b) min max, pi, e. 드래그로 이동, 그래프 위에 마우스를 올리면 해당 x와 함수값 표시.";
   el.appendChild(note);
   function draw(){
     cv.clear();fr=frame(ctx,cv.W,cv.H,xr,yr);
@@ -1247,7 +1247,7 @@ reg("path-limit",function(el,cfg){
         );
       } else {
         item(box, "div",
-          "근 가까이에서 f′(α)≠0이면 보통 이차수렴해 오차의 자릿수가 약 두 배로 늘어납니다."
+          "f가 근 α 부근에서 충분히 매끄럽고(예: f″이 α 부근에서 연속) f′(α)≠0이면, 초기값이 α에 충분히 가까운 경우 보통 이차수렴해 오차의 자릿수가 약 두 배로 늘어납니다."
         );
       }
 
@@ -1862,6 +1862,9 @@ reg("path-limit",function(el,cfg){
     cfg=cfg||{};
     window.V6.title(el,cfg.title||"경사하강법: 학습률과 조건수");
     var cv=X.mkCanvas(el,440),ctx=cv.ctx;
+    var cwrap=X.h("div");cwrap.style.cssText="overflow-x:auto;-webkit-overflow-scrolling:touch";
+    el.insertBefore(cwrap,cv.c);cwrap.appendChild(cv.c);
+    cv.c.style.minWidth="600px";cv.c.style.touchAction="pan-x pan-y";
     var controls=X.h("div","v6-controls"),actions=X.h("div","v6-controls");
     el.appendChild(controls);el.appendChild(actions);
     [controls,actions].forEach(function(n){
@@ -1978,7 +1981,7 @@ reg("path-limit",function(el,cfg){
       lineText("f₀ = "+fmt(f0,6)+", x₀ = "+fmt(x0,5)+", c = "+fmt(c,5));
       if(f0===0)lineText("초기점이 이미 최적점입니다. 모든 학습률에서 이 시작점은 0에 머뭅니다.");
       heading("수렴 조건");
-      lineText("일반적인 수렴 조건: 0 < α < 2/c = "+fmt(2/c,5));
+      lineText("이 1변수 이차함수에서의 수렴 조건: 0 < α < 2/c = "+fmt(2/c,5));
       lineText("α=0: 정지 · α=1/c: 한 단계 정확 도달 · α=2/c: 비영 초기점에서 진동 · α>2/c: 최적점이 아닌 초기점에서 발산");
       heading("반복과 공식 비교");
       alphas.forEach(function(alpha,j){

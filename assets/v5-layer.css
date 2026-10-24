@@ -146,3 +146,6 @@ html[data-theme="dark"] details.v5d[open]>summary{background:#e0e0e0}
 }
 /* 모바일 토글 표시 보정 (2026-10-24): 기존 CSS의 .phead-r 숨김으로 토글이 안 보이던 문제 */
 @media(max-width:760px){.phead .phead-r{display:block}}
+
+/* 15. 모바일: 고정 "맨 위로" 버튼이 본문 끝을 가리지 않도록 하단 여백 */
+@media(max-width:560px){body{padding-bottom:60px}}
