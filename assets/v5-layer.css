@@ -149,3 +149,6 @@ html[data-theme="dark"] details.v5d[open]>summary{background:#e0e0e0}
 
 /* 15. 모바일: 고정 "맨 위로" 버튼이 본문 끝을 가리지 않도록 하단 여백 */
 @media(max-width:560px){body{padding-bottom:60px}}
+
+/* 16. 모바일: 고정 "맨 위로" 버튼이 스크롤 중 본문·그래프를 가리지 않도록 숨김 */
+@media(max-width:560px){.to-top{display:none!important}}
