@@ -1940,7 +1940,7 @@ reg("path-limit",function(el,cfg){
       var topT=W<560?46:34;
       var top=X.frame(ctx,W,225,[-4,4],[0,ymax],{L:48,R:20,T:topT,B:29,nx:8,ny:4});
       var narrow=W<560;
-      ctx.save();ctx.font="12px "+FONT;
+      ctx.save();ctx.font="12px 'Noto Sans KR',sans-serif";
       if(narrow){
         tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",48,14);
         var lx=48;
