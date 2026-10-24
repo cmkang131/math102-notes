@@ -154,8 +154,10 @@ function mkCanvas(el,H){
   var W=720,S=2,c=document.createElement("canvas");c.width=W*S;c.height=H*S;c.style.width="100%";c.style.touchAction="none";
   c.style.aspectRatio=W+"/"+H;el.appendChild(c);
   var ctx=c.getContext("2d");ctx.setTransform(S,0,0,S,0,0);
-  return {c:c,ctx:ctx,W:W,H:H,clear:function(){ctx.setTransform(S,0,0,S,0,0);ctx.clearRect(0,0,W,H);},
-    pos:function(ev){var r=c.getBoundingClientRect();return {x:(ev.clientX-r.left)*W/r.width,y:(ev.clientY-r.top)*H/r.height};}};
+  var o={c:c,ctx:ctx,W:W,H:H,clear:function(){ctx.setTransform(S,0,0,S,0,0);ctx.clearRect(0,0,W,H);},
+    pos:function(ev){var r=c.getBoundingClientRect();return {x:(ev.clientX-r.left)*W/r.width,y:(ev.clientY-r.top)*H/r.height};},
+    setSize:function(nW,nH){W=o.W=Math.round(nW);H=o.H=Math.round(nH);c.width=W*S;c.height=H*S;c.style.aspectRatio=W+"/"+H;ctx.setTransform(S,0,0,S,0,0);}};
+  return o;
 }
 function niceStep(range,target){
   var raw=range/(target||6),mag=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10)),n=raw/mag;
@@ -1862,9 +1864,14 @@ reg("path-limit",function(el,cfg){
     cfg=cfg||{};
     window.V6.title(el,cfg.title||"경사하강법: 학습률과 조건수");
     var cv=X.mkCanvas(el,440),ctx=cv.ctx;
-    var cwrap=X.h("div");cwrap.style.cssText="overflow-x:auto;-webkit-overflow-scrolling:touch";
-    el.insertBefore(cwrap,cv.c);cwrap.appendChild(cv.c);
-    cv.c.style.minWidth="600px";cv.c.style.touchAction="pan-x pan-y";
+    var W=720;
+    function layout(){
+      var avail=el.clientWidth||720;
+      var nW=Math.max(320,Math.min(720,Math.floor(avail)));
+      var nH=(mode&&nW<620)?810:440;
+      if(nW!==W||nH!==cv.H){W=nW;cv.setSize(W,nH);}
+    }
+    var rszT=null;window.addEventListener("resize",function(){if(rszT)clearTimeout(rszT);rszT=setTimeout(function(){layout();refresh();},150);});
     var controls=X.h("div","v6-controls"),actions=X.h("div","v6-controls");
     el.appendChild(controls);el.appendChild(actions);
     [controls,actions].forEach(function(n){
@@ -1930,12 +1937,26 @@ reg("path-limit",function(el,cfg){
         {color:RED,shape:3,label:"④ 직접"}
       ];
       var ymax=Math.max(1,9*c);
-      var top=X.frame(ctx,720,225,[-4,4],[0,ymax],{L:48,R:20,T:34,B:29,nx:8,ny:4});
-      tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",55,16);
-      styles.forEach(function(s,j){
-        var lx=[345,431,517,625][j];
-        marker(ctx,lx,16,j,s.color,3);tag(ctx,s.label,lx+8,19,s.color);
-      });
+      var topT=W<560?46:34;
+      var top=X.frame(ctx,W,225,[-4,4],[0,ymax],{L:48,R:20,T:topT,B:29,nx:8,ny:4});
+      var narrow=W<560;
+      ctx.save();ctx.font="12px "+FONT;
+      if(narrow){
+        tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",48,14);
+        var lx=48;
+        styles.forEach(function(s,j){
+          marker(ctx,lx,29,j,s.color,3);tag(ctx,s.label,lx+8,32,s.color);
+          lx+=8+ctx.measureText(s.label).width+16;
+        });
+      }else{
+        tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",55,16);
+        var lx=55+ctx.measureText("f(x)=½cx² · 반복 위치 xₖ").width+24;
+        styles.forEach(function(s,j){
+          marker(ctx,lx,16,j,s.color,3);tag(ctx,s.label,lx+8,19,s.color);
+          lx+=8+ctx.measureText(s.label).width+18;
+        });
+      }
+      ctx.restore();
       X.curve(ctx,top,function(x){return c*x*x/2;},[-4,4],[0,ymax],INK,1.6);
       var data=[],outside=false;
       alphas.forEach(function(alpha,j){
@@ -1962,7 +1983,7 @@ reg("path-limit",function(el,cfg){
       var high=Math.max(2,f0>0?Math.log10(f0)+0.5:2);
       data.forEach(function(D){D.logs.forEach(function(q){if(finiteN(q[1]))high=Math.max(high,q[1]+0.5);});});
       high=Math.min(25,high);
-      var bottom=X.frame(ctx,720,205,[0,25],[-13,high],{L:48,R:20,T:31,B:30,nx:5,ny:4});
+      var bottom=X.frame(ctx,W,205,[0,25],[-13,high],{L:48,R:20,T:31,B:30,nx:5,ny:4});
       tag(ctx,"log₁₀ f(xₖ) · fₖ=0이면 로그 미정의",55,17);
       line(ctx,bottom,0,-6,25,-6,INK,1,[5,4]);ctx.save();bottom.clip();
       data.forEach(function(D,j){
@@ -2004,8 +2025,9 @@ reg("path-limit",function(el,cfg){
       var r=(kappa-1)/(kappa+1),alpha=2/(kappa+1),f0=(16+kappa)/2,pts=[];
       for(var j=0;j<=25;j++)pts.push([4*Math.pow(r,j),Math.pow(-r,j)]);
       var f1=(pts[1][0]*pts[1][0]+kappa*pts[1][1]*pts[1][1])/2;
+      var wide=W>=620,fw=wide?W/2:W;
       ctx.save();ctx.translate(0,38);
-      var left=X.frame(ctx,360,360,[-9,9],[-9,9],{L:33,R:27,T:34,B:30,nx:4,ny:4});
+      var left=X.frame(ctx,fw,360,[-9,9],[-9,9],{L:33,R:27,T:34,B:30,nx:4,ny:4});
       tag(ctx,"(x,y) 이론 경로",36,18);ctx.save();left.clip();
       [1,0.5,0.2,0.05].forEach(function(q){
         var f=f0*q,ax=Math.sqrt(2*f),by=Math.sqrt(2*f/kappa),ellipse=[];
@@ -2015,9 +2037,9 @@ reg("path-limit",function(el,cfg){
       poly(ctx,left,pts,RED,1.8);
       pts.forEach(function(q,i){marker(ctx,left.px(q[0]),left.py(q[1]),0,i===0?INK:RED,i===0?4:2.5);});
       ctx.restore();ctx.restore();
-      ctx.save();ctx.translate(360,38);
+      ctx.save();ctx.translate(wide?fw:0,wide?38:410);
       var log0=Math.log10(f0);
-      var right=X.frame(ctx,360,360,[0,25],[-13,Math.max(2,log0+0.5)],{L:47,R:14,T:34,B:30,nx:5,ny:4});
+      var right=X.frame(ctx,fw,360,[0,25],[-13,Math.max(2,log0+0.5)],{L:47,R:14,T:34,B:30,nx:5,ny:4});
       tag(ctx,"log₁₀ f(xₖ,yₖ) · 이론값",50,18);
       line(ctx,right,0,-6,25,-6,INK,1,[4,4]);ctx.save();right.clip();
       var prev=null;
@@ -2040,7 +2062,7 @@ reg("path-limit",function(el,cfg){
       lineText("경로와 로그 그래프는 이론값입니다. f=0이면 로그를 그릴 수 없습니다.");
     }
     function refresh(){
-      switchControls();cv.clear();if(mode)drawTwoVariables();else drawOneVariable();
+      layout();switchControls();cv.clear();if(mode)drawTwoVariables();else drawOneVariable();
     }
     refresh();
   });
