@@ -22,6 +22,7 @@
       btn=d.createElement('button');btn.type='button';btn.className='theme-toggle';
       var lab=function(){btn.textContent=root.getAttribute('data-theme')==='dark'?'라이트':'다크 모드';btn.setAttribute('aria-label','화면 모드 전환')};
       lab();btn.onclick=function(){var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem(k,n)}catch(e){}lab()};
+      if(window.matchMedia){var mqT=matchMedia('(prefers-color-scheme: dark)');var followT=function(){var v=null;try{v=localStorage.getItem(k)}catch(e){}if(v)return;root.setAttribute('data-theme',sys());lab()};if(mqT.addEventListener)mqT.addEventListener('change',followT);else if(mqT.addListener)mqT.addListener(followT)}
     }
     var ph=$('.phead'),phr=$('.phead-r');
     if(phr){phr.appendChild(btn)}
