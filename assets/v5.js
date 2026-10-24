@@ -68,7 +68,7 @@
     var tl=$$('.toc a[href^="#"]');
     if(tl.length&&'IntersectionObserver' in window){
       var heads=tl.map(function(a){return d.getElementById(decodeURIComponent(a.hash.slice(1)))}).filter(Boolean);
-      var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){tl.forEach(function(a){a.classList.toggle('active',a.hash==='#'+en.target.id);if(a.hash==='#'+en.target.id)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current')});try{history.replaceState(null,'','#'+en.target.id)}catch(e){}}})},{rootMargin:'-70px 0px -70% 0px'});
+      var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){tl.forEach(function(a){var h=a.hash;try{h=decodeURIComponent(h)}catch(e){}a.classList.toggle('active',h==='#'+en.target.id);if(h==='#'+en.target.id)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current')});try{history.replaceState(null,'','#'+en.target.id)}catch(e){}}})},{rootMargin:'-70px 0px -70% 0px'});
       heads.forEach(function(h){io.observe(h)});
     }
 
