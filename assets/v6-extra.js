@@ -1937,16 +1937,17 @@ reg("path-limit",function(el,cfg){
         {color:RED,shape:3,label:"④ 직접"}
       ];
       var ymax=Math.max(1,9*c);
-      var topT=W<560?46:34;
+      var topT=W<560?58:34;
       var top=X.frame(ctx,W,225,[-4,4],[0,ymax],{L:48,R:20,T:topT,B:29,nx:8,ny:4});
       var narrow=W<560;
       ctx.save();ctx.font="12px 'Noto Sans KR',sans-serif";
       if(narrow){
         tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",48,14);
-        var lx=48;
+        var w0=ctx.measureText(styles[0].label).width,w2=ctx.measureText(styles[2].label).width;
+        var xc2=48+8+Math.max(w0,w2)+24;
+        var lpos=[[48,29],[xc2,29],[48,43],[xc2,43]];
         styles.forEach(function(s,j){
-          marker(ctx,lx,29,j,s.color,3);tag(ctx,s.label,lx+8,32,s.color);
-          lx+=8+ctx.measureText(s.label).width+16;
+          marker(ctx,lpos[j][0],lpos[j][1],j,s.color,3);tag(ctx,s.label,lpos[j][0]+8,lpos[j][1]+3,s.color);
         });
       }else{
         tag(ctx,"f(x)=½cx² · 반복 위치 xₖ",55,16);
