@@ -16,7 +16,7 @@ button,summary,a,.tap,.card{cursor:pointer}
 
 /* 2. 본문 컬럼 탈출 방지 */
 html{-webkit-text-size-adjust:100%}
-.paper{max-width:780px;min-width:0;overflow-x:clip;overflow-wrap:break-word}
+.paper{max-width:900px;min-width:0;overflow-x:clip;overflow-wrap:break-word}
 .paper img,.paper svg,.paper figure,.paper video{max-width:100%}
 .paper img{height:auto}
 .paper pre{max-width:100%;overflow-x:auto;white-space:pre}

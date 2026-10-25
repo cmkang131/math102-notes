@@ -12,7 +12,7 @@ svg{max-width:100%}
 .mjx{display:inline!important}.mjx svg{display:inline-block!important;vertical-align:middle;overflow:visible}
 .mjx-display{margin:9px 0;overflow-x:auto;overflow-y:hidden;padding:7px 14px;border:1px solid #1a1a1a;background:transparent}
 .mjx-display svg{display:block!important;margin:0 auto}
-.paper{max-width:780px;margin:0 auto;background:#fff;padding:28px 40px 56px}
+.paper{max-width:900px;margin:0 auto;background:#fff;padding:28px 44px 56px}
 .phead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;color:var(--gray);
   padding-bottom:10px;margin-bottom:0}
 .phead-c{color:var(--ink);font-weight:700;font-size:13.5px;text-align:center}
@@ -153,7 +153,7 @@ details.dx summary:hover{color:var(--ink)}
 .tblwrap{overflow-x:auto;margin:18px 0}
 .notes table{border-collapse:collapse;width:100%;margin:18px 0;font-size:15px;font-variant-numeric:tabular-nums;border-top:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule)}
 .tblwrap table{margin:0}
-.notes td,.notes th{border:none;padding:9px 12px;vertical-align:top;line-height:1.65;text-align:left}
+.notes td,.notes th{border:none;padding:10px 12px;vertical-align:top;line-height:1.7;text-align:left}
 .notes thead th{border-bottom:1px solid var(--rule);font-weight:700;white-space:nowrap}
 .notes tbody tr+tr td,.notes tbody tr+tr th{border-top:1px solid #e2e2e2}
 .notes dl.deflist{margin:14px 0;border-top:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule)}
